@@ -23,6 +23,8 @@
      - 训练过程中动态调度资源。
    * - :doc:`Profiling <../profile>`
      - 对 Ray worker 进程进行系统级 profiling。
+   * - :doc:`PCIe 多卡 OpenPI SFT <../openpi_pcie_sft>`
+     - 测量 PCIe GPU 的传输路径、micro batch 和 checkpoint 内存。
    * - :doc:`5D 并行 <../5D>`
      - 为大模型配置 5D 并行。
 
@@ -36,4 +38,5 @@
    自动 Placement <../auto_placement>
    动态调度 <../dynamic_scheduling>
    Profiling <../profile>
+   PCIe 多卡 OpenPI SFT <../openpi_pcie_sft>
    5D 并行 <../5D>

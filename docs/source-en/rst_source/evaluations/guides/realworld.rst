@@ -1,7 +1,7 @@
 Real-World Evaluation
 =====================
 
-RLinf supports evaluating and deploying VLA policies on Franka arms, including Bin-relocation (pick-and-place) tasks and a YAML-configurable generic environment (``FrankaEnv-v1``) for custom tasks.
+Deploy VLA policies on Franka arms or through an existing SpiritAI robot container. The Franka sections cover local hardware setup; the SpiritAI section connects the GPU workstation to the robot server.
 
 Related training docs: :doc:`../../examples/embodied/franka_pi0_sft_deploy`, :doc:`../../examples/embodied/franka`, :doc:`../../examples/embodied/sft_dreamzero`
 
@@ -390,3 +390,51 @@ FAQ
 - **Ray shows only one node:** Check firewall rules, ``RLINF_COMM_NET_DEVICES``, and that the head IP is reachable from other nodes.
 - **Step-count errors:** Ensure ``max_steps_per_rollout_epoch`` is divisible by ``num_action_chunks``.
 - **ZED / Robotiq:** See :doc:`../../examples/embodied/franka_zed_robotiq`.
+
+SpiritAI Robot Container
+------------------------
+
+Deploy the SpiritAI Cartesian checkpoint through the robot's existing
+WebSocket container with ``realworld_spiritai_eval_pi05_RTC.yaml``.
+Run the RLinf env and rollout workers on the GPU workstation; the container
+continues to own the robot's low-level control.
+
+The client speaks the existing MessagePack NumPy protocol:
+``hello``, ``get_obs``, ``get_status``, ``set_external_following``, and
+``send_command``. It checks Cartesian capabilities and sends ``kind: cart``
+commands. The 25-D policy output is mapped to the container's 14-, 20-, or
+23-D layout, omitting the two psi values. RTC dispatches one action row per
+tick while the rollout worker generates the next chunk.
+
+Set the robot address, task instruction, checkpoint, and training-time stats:
+
+.. code-block:: bash
+
+   bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_RTC \
+     rollout.model.model_path=/path/to/checkpoints/global_step_90000 \
+     rollout.model.openpi_data.norm_stats_path=/path/to/foldbox_assets/norm_stats.json \
+     env.eval.override_cfg.robot_url=ws://ROBOT_HOST:8766 \
+     'env.eval.override_cfg.task_description="Fold the cardboard box"' \
+     env.eval.override_cfg.zero_base_actions=true
+
+This connects to a physical robot. Reset reads the current pose; place the
+robot at the task's starting configuration beforehand. The default keyboard
+wrapper waits for ``a`` to start, accepts ``c`` for success and ``b`` for
+failure. Set ``env.eval.keyboard_device`` if automatic device selection does
+not find the intended keyboard. Construction does not connect or move the
+robot; resetting the evaluation opens the connection and enables external
+following as configured.
+
+The adapter bounds per-axis arm/torso translation and rotation rates,
+gripper velocity, and base speed around measured state. Configure those
+limits under ``env.eval.override_cfg`` for the robot and task. The example
+sets base commands to zero for FoldBox. Match ``source_hz`` to the recorded
+data rate; the default is 30 Hz. Requests have a total send/receive deadline;
+a transport failure closes the session instead of reusing a stale reply.
+Closing an active env releases external following and closes its connection.
+
+Keep the training state-token setting, token budget, camera order, and
+normalization statistics when loading a checkpoint. This deployment uses
+RLinf's ``approx`` RTC overlap guidance; it does not require training-time
+action-prefix conditioning. Measure latency and task success on the physical
+robot. See :doc:`../../guides/rtc` for the shared RTC controls and metrics.

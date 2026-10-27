@@ -24,6 +24,8 @@ training efficiency becomes the bottleneck.
      - Dynamically schedule resources during training.
    * - :doc:`Profiling <../profile>`
      - System-level profiling of Ray worker processes.
+   * - :doc:`OpenPI SFT on PCIe GPUs <../openpi_pcie_sft>`
+     - Measure transport, micro batches, and checkpoint memory on PCIe-connected GPUs.
    * - :doc:`5D Parallelism <../5D>`
      - Configure 5D parallelism for large models.
 
@@ -37,4 +39,5 @@ training efficiency becomes the bottleneck.
    Auto Placement <../auto_placement>
    Dynamic Scheduling <../dynamic_scheduling>
    Profiling <../profile>
+   OpenPI SFT on PCIe GPUs <../openpi_pcie_sft>
    5D Parallelism <../5D>

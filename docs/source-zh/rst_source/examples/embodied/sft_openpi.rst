@@ -402,6 +402,41 @@ Pi0 + RoboTwin
 
    bash examples/sft/run_vla_sft.sh robotwin_adjust_bottle_sft_openpi
 
+
+Pi0.5 + SpiritAI
+--------------------
+
+使用 ``spiritai_sft_openpi_pi05_full.yaml`` 在双卡上训练 Pi0.5 的全部参数。该 recipe 复用 RLinf 的 FSDP 和 flow-matching loss，通过已有登录配置向 W&B 记录指标。为每个任务指定数据集及对应的归一化统计。
+
+如果全局 W&B CLI 与项目 venv 的默认服务地址不同，启动前将 ``WANDB_BASE_URL`` 设置为已有登录使用的服务地址。凭据按服务主机名匹配。
+
+Cartesian 布局共 25 维：左臂位姿（6）、psi（1）、夹爪（1），右臂位姿（6）、psi（1）、夹爪（1），躯干位姿（6）和底盘速度（3）。三路相机为 ``cam_high``、``cam_left_wrist`` 和 ``cam_right_wrist``。当前 state 归一化后与 prompt 一起编码为 token；未来动作补齐到 32 维，horizon 为 50。256 的 token 上限同时容纳 prompt 和 state，较长任务指令需要检查截断。
+
+使用当前任务自己的 stats 文件。对于固定底盘的 FoldBox 任务，设置 ``zero_base_action_targets=true``，在归一化之前将底盘 target 置零：
+
+.. code-block:: bash
+
+   export JAX_PLATFORMS=cpu
+   export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+   python examples/sft/train_vla_sft.py \
+     --config-name spiritai_sft_openpi_pi05_full \
+     data.train_data_paths=/path/to/foldbox_dataset \
+     actor.model.model_path=/path/to/pi05_base_rlinf_pytorch \
+     actor.model.openpi_data.norm_stats_path=/path/to/foldbox_assets/norm_stats.json \
+     actor.model.openpi_data.zero_base_action_targets=true \
+     runner.logger.log_path=./logs/spiritai_foldbox \
+     runner.logger.experiment_name=spiritai_foldbox_pi05_full_bs32
+
+该命令采用全局 batch 32、90,000 个 optimizer steps、FP32 参数更新、BF16 计算、梯度检查点和 ``full_shard``。``JAX_PLATFORMS=cpu`` 将数据工具限制到 CPU，PyTorch 仍在 GPU 上训练。持续运行前，检查 W&B 中的 loss、梯度范数、学习率和单步耗时。
+
+测量峰值显存后再增加每卡 ``actor.micro_batch_size``。通过 ``actor.global_batch_size`` 独立比较 32、64 和 128。在样本曝光量相同的情况下，分别对应 90,000、45,000 和 22,500 个 optimizer steps。每组实验显式配置 ``runner.max_steps``、``actor.optim.total_training_steps``、warmup 和保存间隔。
+
+双卡实测流程、梯度累积与 GPU 批量的区别，以及 NCCL 实际路径检查，见 :doc:`调优 PCIe 多卡 OpenPI SFT <../../guides/openpi_pcie_sft>`。
+
+可选的 ``data.stateful_loader=true`` 通过现有 SFT checkpoint 接口保存已消费的数据位置和 worker 随机状态。该 loader 暴露有限 epoch，由 SFT worker 在每个 epoch 更新分布式 sampler。恢复时，在相同训练命令后添加 ``+runner.resume_dir=/path/to/checkpoints/global_step_5000``。保持数据内容、变换、stats、rank 布局、micro batch、worker 数和 seed 一致。数据集和 stats 应与实验记录一起保留，权重文件不会打包这些资产。
+
+使用已有 SpiritAI container 部署训练结果，步骤见 :doc:`真机评测 <../../evaluations/guides/realworld>`。RLinf RTC 在推理时引导采样，本 recipe 训练普通 flow-matching 目标，不使用干净动作前缀训练或仅对后缀计算 loss。
+
 评测
 ----------------------------------------
 

@@ -1,0 +1,204 @@
+{
+  "checkpoint_20_to_21": [
+    {
+      "checkpoint": "/home/deng/Documents/codebase/RLinf/logs/spiritai_tuning_20261027/confirm_p2p_m8/spiritai_foldbox_tune_confirm_p2p_m8/checkpoints/global_step_20/actor",
+      "optimizer_step": 20,
+      "optimizer_state_count": 667,
+      "optimizer_step_values": [
+        0.0,
+        20.0
+      ],
+      "active_state_count": 665,
+      "zero_step_states": [
+        "fsdp_checkpoint.optimizers.state.llm.final_norms.0.scale.step",
+        "fsdp_checkpoint.optimizers.state.llm.layers.17.pre_ffw_norms.0.scale.step"
+      ],
+      "consumed_microbatches_per_rank": [
+        80,
+        80
+      ],
+      "rng_checkpoint": true,
+      "full_weights_bytes": 13413970310
+    },
+    {
+      "checkpoint": "/home/deng/Documents/codebase/RLinf/logs/spiritai_tuning_20261027/resume_p2p_m8/spiritai_foldbox_tune_resume_p2p_m8/checkpoints/global_step_21/actor",
+      "optimizer_step": 21,
+      "optimizer_state_count": 667,
+      "optimizer_step_values": [
+        0.0,
+        21.0
+      ],
+      "active_state_count": 665,
+      "zero_step_states": [
+        "fsdp_checkpoint.optimizers.state.llm.final_norms.0.scale.step",
+        "fsdp_checkpoint.optimizers.state.llm.layers.17.pre_ffw_norms.0.scale.step"
+      ],
+      "consumed_microbatches_per_rank": [
+        84,
+        84
+      ],
+      "rng_checkpoint": true,
+      "full_weights_bytes": 13413970310
+    },
+    {
+      "representative_weight_update_max_abs": {
+        "action_out_proj.weight": 9.653158485889435e-06,
+        "img.stem.weight": 7.94045627117157e-06,
+        "llm.layers.0.attn.q_proj.0.weight": 8.526258170604706e-06
+      },
+      "exported_parameter_tensors": 667,
+      "exported_numel": 3353433872
+    }
+  ],
+  "checkpoint_2_to_3": [
+    {
+      "checkpoint_step": 2,
+      "optimizer_state_count": 667,
+      "optimizer_step_values": [
+        0.0,
+        2.0
+      ],
+      "active_state_count": 665,
+      "zero_step_states": [
+        "fsdp_checkpoint.optimizers.state.llm.final_norms.0.scale.step",
+        "fsdp_checkpoint.optimizers.state.llm.layers.17.pre_ffw_norms.0.scale.step"
+      ],
+      "loader_num_yielded": [
+        32,
+        32
+      ]
+    },
+    {
+      "checkpoint_step": 3,
+      "optimizer_state_count": 667,
+      "optimizer_step_values": [
+        0.0,
+        3.0
+      ],
+      "active_state_count": 665,
+      "zero_step_states": [
+        "fsdp_checkpoint.optimizers.state.llm.final_norms.0.scale.step",
+        "fsdp_checkpoint.optimizers.state.llm.layers.17.pre_ffw_norms.0.scale.step"
+      ],
+      "loader_num_yielded": [
+        48,
+        48
+      ]
+    },
+    {
+      "weight_update_max_abs": {
+        "action_out_proj.weight": 1.0009855031967163e-05,
+        "img.stem.weight": 1.0009855031967163e-05,
+        "llm.layers.0.attn.q_proj.0.weight": 1.0008923709392548e-05
+      }
+    }
+  ],
+  "offline_inference": {
+    "source": "real FoldBox frame 0, no robot connection",
+    "checkpoint_step": 3,
+    "model_load_s": 23.898239275993546,
+    "first_normal_inference_s": 6.162752920994535,
+    "first_rtc_inference_s": 0.25157453201245517,
+    "actions_shape": [
+      1,
+      50,
+      25
+    ],
+    "model_actions_shape": [
+      1,
+      50,
+      32
+    ],
+    "rtc_actions_shape": [
+      1,
+      50,
+      25
+    ],
+    "rtc_model_actions_finite": true,
+    "rtc_action_max_abs": 6.04420280456543,
+    "torch_compile": true,
+    "robot_commands_sent": 0
+  },
+  "repeated_save": [
+    {
+      "checkpoint_step": 2,
+      "files_verified": true,
+      "metadata_entries": 2690,
+      "full_weights_bytes": 13413970310,
+      "parameter_count": 3353433872,
+      "consumed_microbatches_per_rank": [
+        8,
+        8
+      ],
+      "save_window_min_available_GiB": 54.813453674316406,
+      "save_window_max_group_anon_GiB": 56.30156326293945,
+      "post_save_1s_group_anon_GiB": 24.66366958618164,
+      "post_save_1s_available_GiB": 85.72763442993164,
+      "post_save_sample_offset_s": 0.7886855602264404
+    },
+    {
+      "checkpoint_step": 4,
+      "files_verified": true,
+      "metadata_entries": 2690,
+      "full_weights_bytes": 13413970310,
+      "parameter_count": 3353433872,
+      "consumed_microbatches_per_rank": [
+        16,
+        16
+      ],
+      "save_window_min_available_GiB": 53.789520263671875,
+      "save_window_max_group_anon_GiB": 57.18677520751953,
+      "post_save_1s_group_anon_GiB": 35.49766540527344,
+      "post_save_1s_available_GiB": 75.23657989501953,
+      "post_save_sample_offset_s": 1.112274408340454
+    },
+    {
+      "checkpoint_step": 6,
+      "files_verified": true,
+      "metadata_entries": 2690,
+      "full_weights_bytes": 13413970310,
+      "parameter_count": 3353433872,
+      "consumed_microbatches_per_rank": [
+        24,
+        24
+      ],
+      "save_window_min_available_GiB": 53.06557083129883,
+      "save_window_max_group_anon_GiB": 58.04570007324219,
+      "post_save_1s_group_anon_GiB": 31.416107177734375,
+      "post_save_1s_available_GiB": 79.28076171875,
+      "post_save_sample_offset_s": 0.8089008331298828
+    },
+    {
+      "checkpoint_step": 7,
+      "files_verified": true,
+      "metadata_entries": 2690,
+      "full_weights_bytes": 13413970310,
+      "parameter_count": 3353433872,
+      "consumed_microbatches_per_rank": [
+        28,
+        28
+      ],
+      "save_window_min_available_GiB": 52.530242919921875,
+      "save_window_max_group_anon_GiB": 58.4238395690918,
+      "post_save_1s_group_anon_GiB": 38.85843276977539,
+      "post_save_1s_available_GiB": 71.59585189819336,
+      "post_save_sample_offset_s": 0.8781006336212158
+    }
+  ],
+  "temporary_checkpoint_cleanup": {
+    "removed_only": "/home/deng/Documents/codebase/RLinf/logs/spiritai_tuning_20261027/host_memory_three_saves/spiritai_foldbox_tune_host_memory_three_saves/checkpoints",
+    "removed_GiB": 199.91501251608133,
+    "available_before_GiB": 111.83029556274414,
+    "available_after_GiB": 111.93969345092773,
+    "completed_at": 1793089308.02651,
+    "reason": "Four temporary checkpoints created exclusively for repeated-save RAM testing; audit and logs retained."
+  },
+  "host_memory_samples_count": 578,
+  "host_memory_sampled_min_available_GiB": 52.530242919921875,
+  "repeated_save_swap_total_GiB": 1.9999961853027344,
+  "notes": [
+    "Repeated-save checkpoint payloads were audited and then deleted; compact evidence is retained.",
+    "No uninterrupted-vs-resumed 21-step parameter-equivalence comparison was performed.",
+    "Offline RTC used recorded observations; no robot action was sent."
+  ]
+}

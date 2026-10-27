@@ -1,0 +1,75 @@
+[
+  {
+    "name": "save_bs32_m1",
+    "batch": 32,
+    "micro": 1,
+    "accumulation": 16,
+    "train_seconds": 15.223701445007464,
+    "samples_per_second": 2.101985520117661,
+    "equivalent_exposure_steps": 90000,
+    "estimated_compute_days_for_equal_exposure": 15.858022338549441,
+    "loss": 0.23638704419136047,
+    "grad_norm": 1.6983566284179688,
+    "peak_gpu_used_MiB": {
+      "0": 47207,
+      "1": 45903
+    },
+    "wandb": "https://app.forge.coreweave.com/zhipeng-deng-rwth-aachen-university/rlinf/runs/ww2no8oc",
+    "exit_code": 0
+  },
+  {
+    "name": "resume_bs32_m1",
+    "batch": 32,
+    "micro": 1,
+    "accumulation": 16,
+    "train_seconds": 32.140305353997974,
+    "samples_per_second": 0.995634597977442,
+    "equivalent_exposure_steps": 90000,
+    "estimated_compute_days_for_equal_exposure": null,
+    "loss": 0.20542463660240173,
+    "grad_norm": 1.174004316329956,
+    "peak_gpu_used_MiB": {
+      "0": 47563,
+      "1": 48243
+    },
+    "wandb": "https://app.forge.coreweave.com/zhipeng-deng-rwth-aachen-university/rlinf/runs/1r1vfas6",
+    "exit_code": 0,
+    "timing_note": "first step after process restart includes loader warmup"
+  },
+  {
+    "name": "profile_bs64_m1",
+    "batch": 64,
+    "micro": 1,
+    "accumulation": 32,
+    "train_seconds": 28.267938539007446,
+    "samples_per_second": 2.2640490714130155,
+    "equivalent_exposure_steps": 45000,
+    "estimated_compute_days_for_equal_exposure": 14.722884655733045,
+    "loss": 0.24620051681995392,
+    "grad_norm": 1.4483060836791992,
+    "peak_gpu_used_MiB": {
+      "0": 45230,
+      "1": 44875
+    },
+    "wandb": "https://app.forge.coreweave.com/zhipeng-deng-rwth-aachen-university/rlinf/runs/rn0nhgt2",
+    "exit_code": 0
+  },
+  {
+    "name": "profile_bs128_m1",
+    "batch": 128,
+    "micro": 1,
+    "accumulation": 64,
+    "train_seconds": 55.495488054992165,
+    "samples_per_second": 2.3064938157343695,
+    "equivalent_exposure_steps": 22500,
+    "estimated_compute_days_for_equal_exposure": 14.451950014320877,
+    "loss": 0.2302621603012085,
+    "grad_norm": 1.167150855064392,
+    "peak_gpu_used_MiB": {
+      "0": 45692,
+      "1": 44895
+    },
+    "wandb": "https://app.forge.coreweave.com/zhipeng-deng-rwth-aachen-university/rlinf/runs/v9pyovlq",
+    "exit_code": 0
+  }
+]

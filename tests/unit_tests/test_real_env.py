@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import importlib
 import importlib.util
@@ -4830,3 +4831,40 @@ def test_robotwin_eval_success_seed_order_is_controlled_by_base_seed():
 
     assert selected_seed_0 == selected_seed_0_again
     assert selected_seed_0 != selected_seed_1
+
+
+def test_spiritai_env_observes_and_controls_existing_container():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.envs.real.spiritai import SpiritaiCartesianEnv
+
+    with SpiritaiServer() as server:
+        env = SpiritaiCartesianEnv(
+            {
+                "robot_url": server.url,
+                "image_height": 4,
+                "image_width": 5,
+                "source_hz": 100,
+                "zero_base_actions": True,
+                "enable_external_following": True,
+            }
+        )
+        try:
+
+            async def reset_in_worker_loop():
+                return env.reset()
+
+            obs, _ = asyncio.run(reset_in_worker_loop())
+            assert server.commands == []
+            assert server.following is True
+            assert obs["state"]["cartesian"].shape == (25,)
+            action = env.get_hold_action()
+            np.testing.assert_array_equal(action[-3:], 0)
+            obs, reward, terminated, truncated, _ = env.step(action)
+            assert env.observation_space.contains(obs)
+            np.testing.assert_array_equal(server.commands[-1]["actions"][0, -3:], 0)
+            assert (reward, terminated, truncated) == (0, False, False)
+        finally:
+            env.close()
+            env.close()
+        assert server.following is False

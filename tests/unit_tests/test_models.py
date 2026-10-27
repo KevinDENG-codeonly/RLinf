@@ -1540,3 +1540,76 @@ def test_cosmos3_sglang_response_keeps_every_env_in_input_order():
     assert actions.shape == (2, 16, 7)
     assert torch.all(actions[0, :, 6] == -0.5)
     assert torch.all(actions[1, :, 6] == 0.5)
+
+
+def test_spiritai_cartesian_inputs_share_training_and_env_layout():
+    pytest.importorskip("openpi")
+    from rlinf.models.embodiment.openpi.policies.spiritai_policy import (
+        SpiritaiCartesianInputs,
+        SpiritaiCartesianOutputs,
+    )
+    from rlinf.robotics.spiritai import ACTION_KEYS, FIELD_DIMS, STATE_KEYS
+
+    source = {
+        key: np.full(dim, index, dtype=np.float32)
+        for index, (key, dim) in enumerate(zip(STATE_KEYS, FIELD_DIMS, strict=True))
+    }
+    source.update(
+        {
+            key: np.full((50, dim), index, dtype=np.float32)
+            for index, (key, dim) in enumerate(
+                zip(ACTION_KEYS, FIELD_DIMS, strict=True)
+            )
+        }
+    )
+    for index, key in enumerate(("cam_high", "cam_left_wrist", "cam_right_wrist")):
+        source[key] = np.full((4, 5, 3), index, np.uint8)
+    source["prompt"] = "fold a box"
+    inputs = SpiritaiCartesianInputs(zero_base_action_targets=True)(source)
+    env_inputs = SpiritaiCartesianInputs()(
+        {
+            "observation/state": inputs["state"],
+            "observation/image": source["cam_high"],
+            "observation/extra_view_image": np.stack(
+                [source["cam_left_wrist"], source["cam_right_wrist"]]
+            ),
+            "prompt": source["prompt"],
+        }
+    )
+    np.testing.assert_array_equal(
+        inputs["state"], [0] * 6 + [1, 2] + [3] * 6 + [4, 5] + [6] * 6 + [7] * 3
+    )
+    np.testing.assert_array_equal(
+        inputs["actions"][0], [0] * 6 + [1, 2] + [3] * 6 + [4, 5] + [6] * 6 + [0] * 3
+    )
+    np.testing.assert_array_equal(source["base_cmd_speed"], 7)
+    for key in ("state", "prompt"):
+        np.testing.assert_array_equal(inputs[key], env_inputs[key])
+    for key in inputs["image"]:
+        np.testing.assert_array_equal(inputs["image"][key], env_inputs["image"][key])
+    output = SpiritaiCartesianOutputs()(
+        {"actions": np.pad(inputs["actions"], ((0, 0), (0, 7)))}
+    )
+    np.testing.assert_array_equal(output["actions"], inputs["actions"])
+
+
+def test_spiritai_training_recipe_enables_state_and_full_parameters():
+    pytest.importorskip("openpi")
+    from hydra import compose, initialize_config_dir
+
+    from rlinf.models.embodiment.openpi.dataconfig import get_openpi_config
+
+    root = Path(__file__).resolve().parents[2]
+    with initialize_config_dir(
+        version_base="1.1", config_dir=str(root / "examples/sft/config")
+    ):
+        cfg = compose(config_name="spiritai_sft_openpi_pi05_full")
+    registered = get_openpi_config(cfg.actor.model.openpi.config_name)
+    assert registered.model.discrete_state_input is True
+    assert registered.model.max_token_len == cfg.actor.model.openpi.max_token_len == 256
+    assert registered.model.action_horizon == 50
+    assert cfg.actor.model.is_lora is False
+    assert cfg.actor.model.openpi.paligemma_variant == "gemma_2b"
+    assert cfg.actor.model.openpi.action_expert_variant == "gemma_300m"
+    assert cfg.runner.logger.logger_backends == ["wandb"]
+    assert cfg.actor.fsdp_config.sharding_strategy == "full_shard"

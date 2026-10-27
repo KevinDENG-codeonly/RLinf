@@ -462,6 +462,73 @@ model. ``openpi_data.norm_stats_path`` pins SFT and eval to the same
 
    bash examples/sft/run_vla_sft.sh robotwin_adjust_bottle_sft_openpi
 
+
+Pi0.5 + SpiritAI
+--------------------
+
+Train all Pi0.5 parameters on two GPUs with
+``spiritai_sft_openpi_pi05_full.yaml``. The recipe uses RLinf's FSDP and
+flow-matching loss, with W&B logging through your existing login.
+Select the dataset and its normalization statistics for each task.
+If the global W&B CLI and this venv use different default service URLs, set
+``WANDB_BASE_URL`` to the server used for your existing login before launch.
+Credentials are matched by server hostname.
+
+The Cartesian layout has 25 values: left pose (6), psi (1), gripper (1),
+right pose (6), psi (1), gripper (1), torso pose (6), and base velocity (3).
+The three cameras are ``cam_high``, ``cam_left_wrist``, and
+``cam_right_wrist``. Current state is normalized and tokenized with the
+prompt; future actions are padded to 32 dimensions with a horizon of 50.
+The 256-token budget includes both prompt and state. Check longer task
+instructions for truncation.
+
+Use the task's own stats file. For a stationary FoldBox task, set
+``zero_base_action_targets=true`` so base targets are zero before normalization:
+
+.. code-block:: bash
+
+   export JAX_PLATFORMS=cpu
+   export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+   python examples/sft/train_vla_sft.py \
+     --config-name spiritai_sft_openpi_pi05_full \
+     data.train_data_paths=/path/to/foldbox_dataset \
+     actor.model.model_path=/path/to/pi05_base_rlinf_pytorch \
+     actor.model.openpi_data.norm_stats_path=/path/to/foldbox_assets/norm_stats.json \
+     actor.model.openpi_data.zero_base_action_targets=true \
+     runner.logger.log_path=./logs/spiritai_foldbox \
+     runner.logger.experiment_name=spiritai_foldbox_pi05_full_bs32
+
+This starts full-parameter training with global batch 32, 90,000 optimizer
+steps, FP32 parameter updates, BF16 computation, gradient checkpointing, and
+``full_shard``. ``JAX_PLATFORMS=cpu`` confines data utilities to CPU; PyTorch
+still trains on GPUs. Inspect the W&B run's loss, gradient norm, learning rate,
+and step time before leaving the run unattended.
+
+Increase the per-GPU ``actor.micro_batch_size`` after measuring peak memory.
+Change ``actor.global_batch_size`` independently to compare 32, 64, and 128.
+At equal sample exposure, these correspond to 90,000, 45,000, and 22,500
+optimizer steps. Set ``runner.max_steps``,
+``actor.optim.total_training_steps``, warmup, and save interval explicitly
+for each experiment.
+
+For a measured two-GPU workflow that distinguishes accumulation from GPU
+batching and checks the actual NCCL path, see
+:doc:`Tune OpenPI SFT on PCIe GPUs <../../guides/openpi_pcie_sft>`.
+
+The opt-in ``data.stateful_loader=true`` snapshots consumed data and worker
+random states through the existing SFT checkpoint interface. It exposes finite
+epochs so the SFT worker advances the distributed sampler each epoch.
+Resume by adding ``+runner.resume_dir=/path/to/checkpoints/global_step_5000``
+to the same training command. Keep data contents, transforms, stats, rank
+layout, micro batch, worker count, and seed unchanged. Keep the dataset and
+stats alongside the experiment record; they are not bundled in the weights.
+
+Deploy the resulting checkpoint through the existing SpiritAI container:
+:doc:`Real-world evaluation <../../evaluations/guides/realworld>`.
+RLinf RTC guides sampling at inference time, while this recipe trains the
+ordinary flow-matching objective. It does not train on clean action prefixes
+or use a postfix-only loss.
+
 Evaluation
 ----------
 

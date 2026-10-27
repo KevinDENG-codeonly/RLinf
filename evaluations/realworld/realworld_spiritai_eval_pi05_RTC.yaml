@@ -1,0 +1,66 @@
+defaults:
+  - env/realworld_spiritai_cartesian@env.eval
+  - model/pi0_5@rollout.model
+  - _self_
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+cluster:
+  num_nodes: 1
+  component_placement:
+    env: 0
+    rollout: 0
+
+runner:
+  task_type: embodied_eval
+  only_eval: true
+  rtc:
+    enabled: true
+    min_exec_horizon: 10
+    initial_delay_steps: 15
+    delay_buffer_size: 8
+    fixed_delay_steps: 0
+    chunk_pause_seconds: 0.0
+    inject_delay_ms: 0
+  logger:
+    log_path: ../results
+    project_name: rlinf
+    experiment_name: spiritai_pi05_rtc
+    logger_backends: [wandb]
+
+env:
+  group_name: EnvGroup
+  eval:
+    keyboard_reward_wrapper: eval_control
+    keyboard_device: null
+    rollout_epoch: 1
+
+rollout:
+  group_name: RolloutGroup
+  rollout_backend: huggingface
+  pipeline_stage_num: 1
+  model:
+    model_path: /path/to/spiritai_full_weights
+    num_action_chunks: 50
+    action_dim: 25
+    num_steps: 10
+    openpi:
+      task: eval
+      config_name: pi05_spiritai_cartesian
+      discrete_state_input: true
+      max_token_len: 256
+      rtc_enabled: ${runner.rtc.enabled}
+      rtc_guidance_mode: approx
+      rtc_guidance_clip: 5.0
+    openpi_data:
+      norm_stats_path: /path/to/spiritai_dataset/norm_stats.json
+
+actor:
+  model:
+    model_type: openpi

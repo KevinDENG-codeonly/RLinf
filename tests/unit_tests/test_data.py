@@ -3610,3 +3610,67 @@ def test_reward_loaders_accept_one_batch_per_rank(tmp_path):
 
     assert len(train_loader) == 1
     assert len(val_loader) == 1
+
+
+class _OpenPIRandomDataset(torch.utils.data.Dataset):
+    def __len__(self):
+        return 12
+
+    def __getitem__(self, index):
+        return {
+            "state": np.array(
+                [index, random.random(), np.random.rand(), torch.rand(()).item()],
+                dtype=np.float32,
+            ),
+            "image": {"base_0_rgb": np.zeros((2, 2, 3), dtype=np.uint8)},
+            "image_mask": {"base_0_rgb": True},
+            "actions": np.full((2, 4), index, dtype=np.float32),
+        }
+
+
+@pytest.mark.parametrize("num_workers", [0, 2])
+def test_openpi_stateful_loader_resumes_consumed_batches(num_workers):
+    pytest.importorskip("openpi")
+    from openpi.training.data_loader import _collate_fn, _worker_init_fn
+
+    from rlinf.data.datasets.openpi.official_sft_data_loader import (
+        StatefulOpenPIDataLoader,
+        _OpenPIWorkerDataset,
+    )
+    from rlinf.utils.utils import get_rng_state, set_rng_state
+
+    def loader():
+        dataset = _OpenPIRandomDataset()
+        return StatefulOpenPIDataLoader(
+            _OpenPIWorkerDataset(dataset),
+            None,
+            {"num_workers": num_workers},
+            batch_size=2,
+            sampler=torch.utils.data.DistributedSampler(
+                dataset, num_replicas=2, rank=0, seed=42
+            ),
+            num_workers=num_workers,
+            collate_fn=_collate_fn,
+            worker_init_fn=_worker_init_fn,
+            generator=torch.Generator().manual_seed(42),
+            multiprocessing_context="spawn" if num_workers else None,
+            snapshot_every_n_steps=1,
+        )
+
+    original = loader()
+    iterator = iter(original)
+    next(iterator)
+    snapshot = copy.deepcopy(original.state_dict())
+    rng = get_rng_state()
+    expected = next(iterator)
+    restored = loader()
+    restored.load_state_dict(snapshot)
+    resumed = iter(restored)
+    set_rng_state(rng)
+    actual = next(resumed)
+    torch.testing.assert_close(actual[0].state, expected[0].state, rtol=0, atol=0)
+    torch.testing.assert_close(actual[1], expected[1], rtol=0, atol=0)
+    incompatible = copy.deepcopy(snapshot)
+    incompatible["signature"] = {"num_workers": 99}
+    with pytest.raises(ValueError, match="unchanged dataset"):
+        restored.load_state_dict(incompatible)

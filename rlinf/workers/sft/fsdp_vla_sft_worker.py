@@ -141,9 +141,17 @@ class FSDPVlaSftWorker(FSDPSftWorker):
             )
             state = all_states[self._rank]
             self.data_loader.load_state_dict(state)
+            if self.cfg.data.get("stateful_loader", False):
+                self._data_epoch = int(state["epoch"])
             self.data_iter = iter(self.data_loader)
 
             rng_path = os.path.join(load_path, "rng.pt")
+            if self.cfg.data.get("stateful_loader", False) and not os.path.exists(
+                rng_path
+            ):
+                raise FileNotFoundError(
+                    f"Expected OpenPI RNG checkpoint at {rng_path}."
+                )
             if os.path.exists(rng_path):
                 all_rng_states = torch.load(rng_path, weights_only=False)
                 set_rng_state(all_rng_states[self._rank])

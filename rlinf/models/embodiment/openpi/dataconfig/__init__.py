@@ -73,11 +73,24 @@ from rlinf.models.embodiment.openpi.dataconfig.robocasa_dataconfig import (
 from rlinf.models.embodiment.openpi.dataconfig.robotwin_aloha_dataconfig import (
     LeRobotAlohaDataConfig,
 )
+from rlinf.models.embodiment.openpi.dataconfig.spiritai_dataconfig import (
+    LeRobotSpiritaiCartesianDataConfig,
+)
 from rlinf.models.embodiment.openpi.dataconfig.yam_dataconfig import (
     LeRobotYamDataConfig,
 )
 
 _CONFIGS = [
+    TrainConfig(
+        name="pi05_spiritai_cartesian",
+        model=pi0_config.Pi0Config(
+            pi05=True, action_horizon=50, max_token_len=256, discrete_state_input=True
+        ),
+        data=LeRobotSpiritaiCartesianDataConfig(
+            repo_id="spiritai",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+    ),
     TrainConfig(
         name="pi0_libero",
         model=pi0_config.Pi0Config(),

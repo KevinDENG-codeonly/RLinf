@@ -1,7 +1,7 @@
 真机评测
 ========
 
-RLinf 支持在 Franka 机械臂上评测与部署 VLA 策略，涵盖 Bin-relocation（pick-and-place）任务，以及通过 YAML 配置的通用真机环境（``FrankaEnv-v1``，用于自定义任务）。
+在 Franka 机械臂或已有 SpiritAI 机器人 container 上部署 VLA policy。Franka 部分介绍本地硬件配置，SpiritAI 部分介绍 GPU 工作站与机器人服务器的连接。
 
 相关训练文档：:doc:`../../examples/embodied/franka_pi0_sft_deploy`、:doc:`../../examples/embodied/franka`、:doc:`../../examples/embodied/sft_dreamzero`
 
@@ -371,3 +371,27 @@ Dual Franka 部署
 - **Ray 只见一个节点：** 检查防火墙、``RLINF_COMM_NET_DEVICES`` 与 head IP 是否可被其他节点访问。
 - **步数报错：** 确保 ``max_steps_per_rollout_epoch`` 能被 ``num_action_chunks`` 整除。
 - **ZED / Robotiq：** 参阅 :doc:`../../examples/embodied/franka_zed_robotiq`。
+
+SpiritAI 机器人 Container
+--------------------------
+
+使用 ``realworld_spiritai_eval_pi05_RTC.yaml``，通过机器人已有的 WebSocket container 部署 SpiritAI Cartesian checkpoint。RLinf env 和 rollout workers 运行在 GPU 工作站，机器人底层控制仍由 container 负责。
+
+client 使用已有的 MessagePack NumPy 协议：``hello``、``get_obs``、``get_status``、``set_external_following`` 和 ``send_command``。它检查 Cartesian 能力并发送 ``kind: cart`` 指令。25 维 policy 输出去掉两个 psi 后，映射到 container 支持的 14、20 或 23 维布局。RTC 每个 tick 下发一行动作，rollout worker 同时生成下一 chunk。
+
+指定机器人地址、任务指令、checkpoint 和训练时使用的 stats：
+
+.. code-block:: bash
+
+   bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_RTC \
+     rollout.model.model_path=/path/to/checkpoints/global_step_90000 \
+     rollout.model.openpi_data.norm_stats_path=/path/to/foldbox_assets/norm_stats.json \
+     env.eval.override_cfg.robot_url=ws://ROBOT_HOST:8766 \
+     'env.eval.override_cfg.task_description="Fold the cardboard box"' \
+     env.eval.override_cfg.zero_base_actions=true
+
+该命令连接真实机器人。reset 读取当前位置，请提前将机器人置于任务起始构型。默认 keyboard wrapper 等待按下 ``a`` 开始运行，按下 ``c`` 标记成功，按下 ``b`` 标记失败。自动选择无法找到所需键盘时，设置 ``env.eval.keyboard_device``。构造环境不会连接或移动机器人；评测 reset 才建立连接，并按配置启用 external following。
+
+适配层基于测量状态限制机械臂和躯干各轴的平移、旋转速度，以及夹爪速度和底盘速度。根据机器人与任务，在 ``env.eval.override_cfg`` 中配置这些限制。示例针对 FoldBox 将底盘指令置零。``source_hz`` 应与采集数据频率匹配，默认 30 Hz。请求包含发送和接收的总超时，传输失败后会关闭连接，避免复用旧响应。关闭活动环境时，会释放 external following 并关闭连接。
+
+加载 checkpoint 时，保持训练时的 state token 设置、token 上限、相机顺序和归一化统计。部署采用 RLinf 的 ``approx`` RTC overlap guidance，不要求训练时加入动作前缀条件。延迟和任务成功率需要在真机上测量。共用 RTC 参数与指标见 :doc:`../../guides/rtc`。

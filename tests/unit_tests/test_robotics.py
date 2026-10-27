@@ -7124,3 +7124,51 @@ def test_SE3_body_delta_compose_round_trip():
 
         assert np.allclose(T_rec[..., :3, :3], T_abs[..., :3, :3], atol=1e-6)
         assert np.allclose(T_rec[..., :3, 3], T_abs[..., :3, 3], atol=1e-6)
+
+
+def test_spiritai_client_uses_container_cartesian_protocol():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.robotics.spiritai import SpiritaiClient
+
+    with SpiritaiServer() as server:
+        client = SpiritaiClient(server.url)
+        try:
+            client.connect()
+            obs, images = client.observation()
+            np.testing.assert_array_equal(
+                obs["leftarm_state_cart_pos"], server.obs["leftarm_state_cart_pos"]
+            )
+            np.testing.assert_array_equal(images["cam_high"], server.images["cam_high"])
+            actions = np.arange(50, dtype=np.float32).reshape(2, 25)
+            client.send_actions(actions, 30)
+            command = server.commands[-1]
+            assert command["kind"] == "cart"
+            assert command["source_hz"] == 30
+            np.testing.assert_array_equal(
+                command["actions"], np.delete(actions, [6, 14], axis=1)
+            )
+            server.reject_commands = True
+            with pytest.raises(RuntimeError, match="accepted SpiritAI"):
+                client.send_actions(actions, 30)
+        finally:
+            client.close()
+            client.close()
+        assert client.connected is False
+
+
+def test_spiritai_client_closes_after_response_timeout():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.robotics.spiritai import SpiritaiClient
+
+    with SpiritaiServer() as server:
+        client = SpiritaiClient(server.url, timeout_s=0.1)
+        client.connect()
+        server.stall_observations = True
+        try:
+            with pytest.raises(TimeoutError):
+                client.observation()
+            assert client.connected is False
+        finally:
+            client.close()

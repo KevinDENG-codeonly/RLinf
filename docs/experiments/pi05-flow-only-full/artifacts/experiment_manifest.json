@@ -1,0 +1,121 @@
+{
+  "archive_utc": "2026-10-27T09:00:19.508947+00:00",
+  "measurement_date_local": "2026-10-27",
+  "timezone": "Asia/Shanghai",
+  "branch": "feature/pi05-flow-only-full",
+  "head": "539a1428789abe6824111a87c3210e0b14c960f3",
+  "working_tree": "Contains uncommitted implementation changes; HEAD alone does not reproduce the tested tree.",
+  "source_fingerprints": {
+    "examples/sft/config/spiritai_sft_openpi_pi05_full.yaml": "10f228d811c0a717b7a85632f506b4baa16bde4504d0ae828d848a17fce3940e",
+    "examples/sft/config/hybrid_engines/openpi_fsdp.yaml": "2268477003952a7255fda0c7b1e1480831c535a9730a0d27d1db6adce07c3e58",
+    "examples/sft/config/hybrid_engines/fsdp.yaml": "bb542b4f26f7cfeac43b96fde5385b9bc89e36f6b41292a4596083f0be4e8ad3",
+    "examples/sft/train_vla_sft.py": "72b3e236dae81e866af1070e236a1a2dce5d916935c54d91d77173a6ea06faec",
+    "rlinf/config.py": "2472cfc5e00b8845893d3e4dd71b00b11f1e21d6e0d5e7f38f494d08a6ed8703",
+    "rlinf/workers/sft/fsdp_sft_worker.py": "80a0dc334d9f31168cfb00830865f59eae9d89dfcadd9cdcd926163ff95aeb25",
+    "rlinf/workers/sft/fsdp_vla_sft_worker.py": "437a9a03ddbed717989a316ab7d7c00240fec70085572831a823307b1837e777",
+    "rlinf/hybrid_engines/fsdp/strategy/base.py": "486fe603cb5417b1e501bc43815abefe273241726dc43b8b167a45d553fc1a69",
+    "rlinf/hybrid_engines/fsdp/strategy/fsdp.py": "3849e4761fecb8c35a37c70e917ce9a668fc96a8d1f1df81e7c39dfa650948f9",
+    "rlinf/scheduler/hardware/accelerators/nvidia_gpu.py": "05571642b2f5c697f51946b1b9de404f924d530b855b50de937eca89c39e4625",
+    "rlinf/data/datasets/openpi/official_sft_data_loader.py": "dfc1d44f3941d008058ad592984f1ae7c1844270384094ef5f9253050face99b",
+    "rlinf/models/embodiment/openpi/pi0.py": "b5d84d0669362a96d5bb4c5cbc4012d74ee8ecbbf6251abb9952f42fc017299d",
+    "rlinf/models/embodiment/openpi/modules/gemma.py": "552625553b40efb52e0880cdf663d0097fe008e1943ab205d9cfe00cc9c5ae78",
+    "rlinf/models/embodiment/openpi/modules/siglip.py": "828a57ef60eaac570c7fd6421432b7934ba9fcb03b6bcbcebc21913d878dd95e",
+    "rlinf/models/embodiment/openpi/modules/utils.py": "ff4d13f8cd41e64844e12be64af1892fff409b7cdfa24443d98a96ed98375bfb",
+    "rlinf/models/embodiment/openpi/dataconfig/__init__.py": "7305df0a209b18af4b5571f7f452cdbc74bc9f875854c65168650f0f236ba326",
+    "rlinf/models/embodiment/openpi/dataconfig/spiritai_dataconfig.py": "74fba2c8fe5c6c968a85a3bf134c5db8640f8268e516fbcc196022421abdb262",
+    "rlinf/models/embodiment/openpi/policies/spiritai_policy.py": "0d221013eb09cbe54a08028ab4f3e8a93b3564f79ccc904f2985ff4caa2580d8",
+    "rlinf/robotics/spiritai.py": "f86af0f05e74fbb38c1b853532abe5a06977e27b9fd152133ed89d91a0e90af9",
+    "rlinf/envs/real/spiritai/cartesian.py": "04c9ca9050e6fec577d5d09f2b50d7225108b84325968e9768599df84dd5c968",
+    "evaluations/realworld/realworld_spiritai_eval_pi05_RTC.yaml": "639ad7b53d95373e9c9e04b89c0f23da4e11ccc5cce5964dea13cf8c0c813a22"
+  },
+  "data_asset_fingerprints": [
+    {
+      "path": "/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json",
+      "bytes": 5850,
+      "sha256": "8de11605d0f64116b6accac671c7156dc7e4a6bc917db10fafef6c4db186f505"
+    },
+    {
+      "path": "/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_14Annotations/meta/info.json",
+      "bytes": 7904,
+      "sha256": "f58b63dfc39162b81777fecb766f09057b12638e7f423de7f5d2cd5971c9301e"
+    }
+  ],
+  "hardware": {
+    "gpu": "2 x NVIDIA RTX PRO 5000 Blackwell",
+    "gpu_memory_MiB_each": 48935,
+    "ram_GiB_approx": 125,
+    "link_under_load": "PCIe Gen5 x16 on both GPUs",
+    "topology": "NODE, same NUMA node; NCCL classifies GPU path as PHB",
+    "p2p_read_write_status": "OK in both directions"
+  },
+  "software_as_measured": {
+    "torch": "2.11.0+cu130",
+    "wandb_venv": "0.25.0",
+    "nccl_initialization_log": "2.32.3+cuda12.9",
+    "torch_cuda_nccl_version_api_in_microbenchmark": [
+      2,
+      28,
+      9
+    ]
+  },
+  "swap_at_training_tests": "Original approximately 2 GiB swap only",
+  "swap_at_documentation_archive": "NAME            TYPE        SIZE       USED PRIO\n/swapfile       file  2147479552 2113409024   -2\n/swapfile-rlinf file 32212250624          0   -3",
+  "fstab_swap_entries_at_archive": [
+    "/swapfile                                 none            swap    sw              0       0",
+    "/swapfile-rlinf none swap sw 0 0"
+  ],
+  "logging": {
+    "backend": "wandb",
+    "credential_source": "existing hostname-matched global login; credentials not archived"
+  },
+  "raw_evidence_roots": [
+    "logs/spiritai_preflight_20261027_131340",
+    "logs/spiritai_tuning_20261027"
+  ],
+  "portable_archive_scope": "Small results and configuration only; raw traces, dataset and model weights remain local.",
+  "package_metadata_at_archive": {
+    "torch": {
+      "version": "2.11.0+cu130"
+    },
+    "torchdata": {
+      "version": "0.11.0"
+    },
+    "ray": {
+      "version": "2.59.0"
+    },
+    "hydra-core": {
+      "version": "1.3.8"
+    },
+    "lerobot": {
+      "version": "0.3.3"
+    },
+    "wandb": {
+      "version": "0.25.0"
+    },
+    "nvidia-nccl-cu12": {
+      "version": "2.32.3"
+    },
+    "nvidia-nccl-cu13": {
+      "version": "2.28.9"
+    }
+  },
+  "runtime_module_origins_at_archive": {
+    "openpi": "/home/deng/Documents/codebase/RLinf/.venv/lib/python3.11/site-packages/openpi/__init__.py",
+    "lerobot": "/home/deng/Documents/codebase/RLinf/.venv/lib/python3.11/site-packages/lerobot/__init__.py"
+  },
+  "formatting_only_source_changes_before_commit": [
+    {
+      "path": "evaluations/realworld/realworld_spiritai_eval_pi05_RTC.yaml",
+      "measurement_sha256": "33e91a2f9117dd796d2beb5fddb5b40f7b7fab8dffa7e100bdfaf210ea74b70f",
+      "archive_sha256": "639ad7b53d95373e9c9e04b89c0f23da4e11ccc5cce5964dea13cf8c0c813a22",
+      "change": "Remove blank line at EOF; parsed YAML is identical."
+    },
+    {
+      "path": "examples/sft/config/spiritai_sft_openpi_pi05_full.yaml",
+      "measurement_sha256": "d5d87b26ec4090f4d2c232e75f89e829f923be5a5728a2733cdd5832b963c79c",
+      "archive_sha256": "10f228d811c0a717b7a85632f506b4baa16bde4504d0ae828d848a17fce3940e",
+      "change": "Remove blank line at EOF; parsed YAML is identical."
+    }
+  ],
+  "source_fingerprint_scope": "Current archived source bytes; measurement-time hashes for formatting-only YAML changes are retained separately. Parsed YAML values are unchanged."
+}

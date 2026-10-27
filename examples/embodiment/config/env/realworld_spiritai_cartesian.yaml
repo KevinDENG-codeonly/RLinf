@@ -1,0 +1,33 @@
+env_type: real
+total_num_envs: 1
+auto_reset: true
+ignore_terminations: false
+reward_mode: raw
+wrap_obs_mode: simple
+seed: 42
+group_size: 1
+use_fixed_reset_state_ids: false
+max_steps_per_rollout_epoch: 3000
+max_episode_steps: 3000
+teleop: none
+use_relative_frame: false
+no_gripper: false
+main_image_key: cam_high
+
+video_cfg:
+  save_video: false
+  info_on_video: true
+  video_base_dir: ../results/spiritai/video
+
+init_params:
+  id: SpiritaiCartesianEnv-v1
+
+override_cfg:
+  robot_url: ws://127.0.0.1:8766
+  timeout_s: 2.0
+  source_hz: 30.0
+  task_description: TASK_DESCRIPTION
+  image_height: 480
+  image_width: 640
+  zero_base_actions: false
+  enable_external_following: true
