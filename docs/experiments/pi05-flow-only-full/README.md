@@ -2,6 +2,10 @@
 
 从这里查阅本次 SpiritAI 训练迁移、NVIDIA PCIe 调优、checkpoint 恢复和主机内存排查的结论，并取得可独立使用的正式训练命令。记录覆盖 2026-10-26 至 2026-10-27 的有限步数实验；正式长训练由人工启动，收敛曲线和真机任务成功率需要在后续实验中补充。
 
+**2026-10-28 更新：** 正式首阶段在完成 506 步后，因 8 个 DataLoader 子进程的主机内存增长触发 Ray 95% 阈值而退出。原有短测未覆盖这一问题；下方配置仍是吞吐对照结果，完整 recipe 的长程稳定性需要修复后重验。重启前先阅读[故障复盘](2026-10-28-loader-memory-failure.md)。
+
+已有[进程内空闲堆页回收修复](2026-10-28-worker-heap-reclaim.md)：真实数据压力验证覆盖每 worker 5000 个样本，超过原失败读取量，最低可用 RAM 为 99.59 GiB；另外通过 20 步双卡更新、保存、新进程恢复到 21 步及再次保存。数据压力测试不包含模型更新，仍需在人工启动的正式实验中观察长程趋势。
+
 本机推荐为 **global batch 64、每卡 micro batch 8、FSDP1 `full_shard`、`NCCL_P2P_LEVEL=PHB`**。20 步确认运行排除前 3 步后平均为 **6.695 秒/步**，初始同 global batch 的基线为 **28.056 秒/步**，组合吞吐提高约 **4.19 倍**。完整保存、新进程恢复和同一进程连续 4 次保存均通过。所有配置使用全参数 FP32 更新、BF16 主干计算，调优通过现有配置和进程环境覆盖完成。
 
 ## 阅读顺序与证据
@@ -13,6 +17,8 @@
 | [2026-10-26 smoke](2026-10-26-smoke.md) | 两张卡能否完成全参数前后向与更新 | global batch 2、5 步、state token 关闭、TensorBoard；只证明可运行 |
 | [2026-10-27 训练预检](2026-10-27-preflight.md) | 数据迁移、W&B、global batch 32/64/128、保存恢复、离线 RTC | micro batch 1；两个更新的比较仅有一个预热后样本 |
 | [2026-10-27 PCIe 与内存专项](2026-10-27-pcie-tuning.md) | 传输路径、micro batch、预取、CTA、主机 RAM/swap | 9 组受控训练对照、20 步确认及恢复、4 次连续保存；当前推荐的直接依据 |
+| [2026-10-28 正式训练退出](2026-10-28-loader-memory-failure.md) | 506 步后的 DataLoader 主机内存增长与 Ray 终止 | 实际 5000 步运行失败；需要重验持续读取容量 |
+| [2026-10-28 空闲堆页回收修复](2026-10-28-worker-heap-reclaim.md) | 可配置的进程内回收与精确数据恢复 | 真实数据验证每 worker 5000 个样本，保留长训练验证边界 |
 | [中英文通用指南：中文](../../source-zh/rst_source/guides/openpi_pcie_sft.rst) / [English](../../source-en/rst_source/guides/openpi_pcie_sft.rst) | 在其他 PCIe 机器上复用排查与调优方法 | 数值来自本机个案，先验证新机器拓扑与容量 |
 | [归档数据说明](artifacts/README.md) | 防止关键结论随本机日志清理丢失 | 小型 CSV、审计 JSON、配置快照和图表进入仓库；大权重留在本机 |
 
@@ -89,6 +95,8 @@
 
 以下命令直接调用仓库原生入口，避免依赖被 Git 忽略的两层本机启动脚本。路径是本次 FoldBox 任务的实际资产路径；迁移任务时替换数据、stats、实验名和任务相关 flags。执行前固定代码版本，并确认 W&B 登录使用的服务地址。
 
+本轮目标是长时间双卡工程稳定性验证，在实际模型更新过程中持续观察主机内存、GPU/NCCL 通信、数据加载、吞吐和 checkpoint 写入，发现并定位类似 OOM 的工程问题。保存间隔保持 2500 步。
+
 先在仓库目录进入已有 tmux 会话；新机器可以用 `tmux new-session -s spiritai-full` 创建：
 
 ```bash
@@ -113,6 +121,7 @@ mkdir -p "$run_dir"
   actor.model.model_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/pi05_base_rlinf_pytorch \
   actor.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json \
   actor.model.openpi_data.zero_base_action_targets=true \
+  data.worker_malloc_trim_interval=64 \
   actor.global_batch_size=64 \
   actor.micro_batch_size=8 \
   runner.max_steps=5000 \
@@ -126,17 +135,19 @@ mkdir -p "$run_dir"
 
 `run.log` 保存原始输出，`pipefail` 保留训练进程的失败退出状态。`NCCL_P2P_LEVEL=PHB` 是本机测试过的拓扑覆盖；新机器先重复 P2P 能力和 transport 检查。`WANDB_BASE_URL` 与已有凭据的主机名一致，本次全局 CLI 与 venv SDK 默认服务地址不同，匹配地址后即可复用登录。文档和归档不包含凭据。
 
+2026-10-28 修复后，SpiritAI recipe 默认每个数据子进程读取 64 个样本后回收 glibc 空闲堆页。保存间隔继续为 2500，5000 步首阶段在第 2500、5000 步保存，共约 100 GiB。后续恢复到总计 45000 步时继续使用相同保存间隔。
+
 训练运行后按 `Ctrl+b`，松开后按 `d` 离开，使用同一 attach 命令返回。tmux 保留终端断连后的任务；机器重启、进程或整个 cgroup 被终止时仍依赖 checkpoint。恢复时在同一训练命令中把 `runner.max_steps` 改为 `45000`，并添加：
 
 ```text
 +runner.resume_dir=/path/to/checkpoints/global_step_5000
 ```
 
-保持 micro batch、worker 数、seed、rank 布局、数据及 stats 一致。`data.stateful_loader=true` 会检查恢复签名。恢复配置时应核对实际解析值，[归档的配置快照](artifacts/formal_resolved.yaml)可作为对照；`--cfg job --resolve` 只解析配置，不启动训练。
+保持 micro batch、worker 数、seed、rank 布局、数据及 stats 一致。`data.stateful_loader=true` 会检查恢复签名。恢复配置时应核对实际解析值，[修复后的配置快照](artifacts/formal_resolved_heap_reclaim.yaml)可作为对照；[原快照](artifacts/formal_resolved.yaml)保留内存回收修复前的配置，两者均每 2500 步保存。`--cfg job --resolve` 只解析配置，不启动训练。
 
 ## 预算、边界与下一次实验
 
-样本曝光量为 `global batch × optimizer steps`。`32 × 90000 = 64 × 45000 = 128 × 22500 = 2880000` 个窗口；warmup 和保存间隔也按这个尺度换算。该预算继承自旧 LoRA 配置，并非已经证明的全参数收敛要求。按 20 步确认数据粗估，5000 步约 9.3 小时、45000 步约 3.5 天纯训练时间，另计保存、中断和长程波动。约 18 份 checkpoint 需要约 900 GiB 磁盘。
+样本曝光量为 `global batch × optimizer steps`。`32 × 90000 = 64 × 45000 = 128 × 22500 = 2880000` 个窗口；warmup 和保存间隔也按这个尺度换算。该预算继承自旧 LoRA 配置，并非已经证明的全参数收敛要求。按 20 步确认数据粗估，5000 步约 9.3 小时、45000 步约 3.5 天纯训练时间，另计保存、中断和长程波动。全程每 2500 步保存约有 18 份、900 GiB。
 
 | 已证实 | 仍需后续实验 |
 |---|---|

@@ -35,14 +35,44 @@ from rlinf.models.embodiment.openpi.transforms.pipeline import (
 class _OpenPIWorkerDataset(torch.utils.data.Dataset):
     """Include worker-side random transforms in consumed-data snapshots."""
 
-    def __init__(self, dataset):
+    def __init__(self, dataset: Any, malloc_trim_interval: int = 0) -> None:
+        if (
+            isinstance(malloc_trim_interval, bool)
+            or not isinstance(malloc_trim_interval, int)
+            or malloc_trim_interval < 0
+        ):
+            raise ValueError(
+                "Expected a nonnegative integer worker_malloc_trim_interval, "
+                f"got {malloc_trim_interval!r}."
+            )
         self.dataset = dataset
+        self._malloc_trim_interval = malloc_trim_interval
+        self._reads = 0
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, index):
-        return self.dataset[index]
+        value = self.dataset[index]
+        if (
+            self._malloc_trim_interval
+            and torch.utils.data.get_worker_info() is not None
+        ):
+            self._reads += 1
+            if self._reads % self._malloc_trim_interval == 0:
+                import ctypes
+
+                try:
+                    trim = ctypes.CDLL(None).malloc_trim
+                except AttributeError as exc:
+                    raise RuntimeError(
+                        "worker_malloc_trim_interval requires glibc malloc_trim; "
+                        "set it to 0 on unsupported allocators."
+                    ) from exc
+                trim.argtypes = [ctypes.c_size_t]
+                trim.restype = ctypes.c_int
+                trim(0)
+        return value
 
     def state_dict(self):
         return {
@@ -154,7 +184,13 @@ def build_official_openpi_sft_dataloader(
     )
     _validate_openpi_model_shape(model_cfg, config)
 
-    if OmegaConf.select(cfg, "data.stateful_loader", default=False):
+    stateful_loader = OmegaConf.select(cfg, "data.stateful_loader", default=False)
+    trim_interval = OmegaConf.select(cfg, "data.worker_malloc_trim_interval", default=0)
+    if trim_interval != 0 and not stateful_loader:
+        raise ValueError(
+            "worker_malloc_trim_interval requires data.stateful_loader=true."
+        )
+    if stateful_loader:
         import hashlib
         from pathlib import Path
 
@@ -206,7 +242,7 @@ def build_official_openpi_sft_dataloader(
             drop_last=True,
         )
         data_loader = StatefulOpenPIDataLoader(
-            _OpenPIWorkerDataset(dataset),
+            _OpenPIWorkerDataset(dataset, malloc_trim_interval=trim_interval),
             data_config,
             signature,
             batch_size=batch_size,

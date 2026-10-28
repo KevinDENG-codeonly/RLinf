@@ -6,6 +6,7 @@
 |---|---|
 | `experiment_manifest.json` | 测试条件、HEAD 加未提交改动的说明、21 个关键源文件的 SHA-256、数据 metadata/stats 指纹、归档时的 swap 状态 |
 | `formal_resolved.yaml` | 手动正式入口 `--cfg job --resolve` 的解析结果；global 64 / micro 8，首阶段 5000、scheduler 45000 |
+| `formal_resolved_heap_reclaim.yaml` | 回收修复后手动命令的解析结果；每 worker 64 个样本回收，保持每 2500 步保存 |
 | `training_benchmarks.csv` | 9 组 8 步对照、20 步确认、1 次恢复更新及 7 步内存复核，共 12 行 |
 | `training_steps.csv` | 上述运行共 100 次更新的原始计时、loss、grad norm、学习率与时间戳 |
 | `preflight_summary.json` | 较早 micro 1 的 global batch 32/64/128 预检结果及估算口径 |
@@ -15,6 +16,10 @@
 | `host_memory_samples.csv` | 578 个约 0.5 秒间隔的主机与 cgroup 内存样本 |
 | `checkpoint_windows.csv` | 从原生 runner 时间估算的保存窗口；用于图中的阴影标注 |
 | `validation_summary.json` | optimizer、权重、loader、RNG、离线推理和临时文件清理证据摘要 |
+| `formal_run_506_failure.json` / `formal_run_host_memory.csv` | 后续正式运行第 506 步触发 Ray 内存保护的审计、CPU 隔离结果与 225 个主机内存样本 |
+| `loader_memory_diagnostics.csv` | 同一真实数据顺序下 6 组 CPU worker 对照，共 54 个采样点；普通/stateful loader、GC、allocator 回收及 arena 设置 |
+| `worker_heap_reclaim_validation.json` | 回收修复后的源码指纹、单测、真实数据 8 worker 验证和各进程峰值 |
+| `worker_heap_reclaim_soak.csv` / `worker_heap_reclaim_soak.svg` | 每 worker 消费 5000 个样本的 CPU 数据压力验证，253 个采样点及图表 |
 | `pcie_sft_tuning.svg` / `checkpoint_host_memory.svg` | 从归档 CSV 生成的图表 |
 | `increase_swap_to_32g.sh` | 从既有约 2 GiB swap 新增 30 GiB、备份 fstab 并持久化的人工运维脚本 |
 

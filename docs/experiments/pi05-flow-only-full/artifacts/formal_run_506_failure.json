@@ -1,0 +1,279 @@
+{
+  "investigation_date_local": "2026-10-28",
+  "timezone": "Asia/Shanghai",
+  "investigation_code_head": "3755b3fab48a18a9c95a0c47371e196b1daef45c",
+  "formal_run": {
+    "run_dir": "/home/deng/Documents/codebase/RLinf/logs/20261027_172946-spiritai_foldbox_pi05_full_bs64",
+    "wandb_run_id": "wllwedmv",
+    "wandb_recorded_git_head": "539a1428789abe6824111a87c3210e0b14c960f3",
+    "code_provenance": "Launched with the previously uncommitted SpiritAI implementation, later committed as 3755b3fa; see the earlier experiment manifest for source fingerprints.",
+    "wandb_started_at_local": "2026-10-27 17:31:12",
+    "ray_memory_threshold_crossed_at_local": "2026-10-27 18:27:40",
+    "completed_optimizer_updates": 506,
+    "last_zero_based_wandb_step": 505,
+    "configuration": {
+      "max_steps": 5000,
+      "scheduler_steps": 45000,
+      "warmup_steps": 750,
+      "save_interval": 2500,
+      "global_batch": 64,
+      "micro_batch_per_gpu": 8,
+      "actor_ranks": 2,
+      "data_workers_per_rank": 4,
+      "stateful_loader": true
+    },
+    "termination": "Ray proactive host-memory worker killing, threshold 0.95",
+    "ray_reported_used_GiB": 119.08,
+    "ray_reported_capacity_GiB": 125.24,
+    "ray_reported_fraction": 0.950782,
+    "threshold_monitor_sample_bytes": {
+      "used": 127764852736,
+      "threshold": 127754846208,
+      "system_total": 134478786560
+    },
+    "byte_sample_note": "The threshold monitor and the later kill summary are separate samples; their values are preserved without forcing equality.",
+    "selected_actor_pids": [
+      939267,
+      939264
+    ],
+    "object_store_usage_bytes": 0,
+    "top_data_processes": [
+      {
+        "pid": 940820,
+        "parent_actor_pid": 939264,
+        "reported_memory_GiB": 19.09
+      },
+      {
+        "pid": 940892,
+        "parent_actor_pid": 939264,
+        "reported_memory_GiB": 14.61
+      },
+      {
+        "pid": 940891,
+        "parent_actor_pid": 939267,
+        "reported_memory_GiB": 12.53
+      },
+      {
+        "pid": 940629,
+        "parent_actor_pid": 939264,
+        "reported_memory_GiB": 12.31
+      },
+      {
+        "pid": 940743,
+        "parent_actor_pid": 939264,
+        "reported_memory_GiB": 10.35
+      },
+      {
+        "pid": 940744,
+        "parent_actor_pid": 939267,
+        "reported_memory_GiB": 10.23
+      },
+      {
+        "pid": 940628,
+        "parent_actor_pid": 939267,
+        "reported_memory_GiB": 9.24
+      },
+      {
+        "pid": 940821,
+        "parent_actor_pid": 939267,
+        "reported_memory_GiB": 9.22
+      }
+    ],
+    "top_data_process_sum_GiB": 97.58,
+    "parent_mapping_source": "Read-only process snapshot collected while this run was active during the preceding push task.",
+    "last_loss": 0.035263173282146454,
+    "last_grad_norm": 0.21873444318771362,
+    "last_training_s": 6.392390197011991,
+    "checkpoint_directories": [],
+    "raw_oom_excerpt": "Exception occurred while running FSDPVlaSftWorker's function run_training: exception is 2 worker(s) were killed due to the node running low on memory. Memory on the node (IP: 198.18.0.1, ID: 4865d7c8a9bd6322a2c7032ee273b36b4055dda4c294fc1c17f2fe7e) was 119.08GB used / 125.24GB limit (0.950782)\nOOM kill reason: Memory usage 127764852736B exceeded threshold of 127754846208B (95.0% of 134478786560B limit)\nObject store memory usage: [- objects spillable: 0\n- bytes spillable: 0\n- objects unsealed: 0\n- bytes unsealed: 0\n- objects in use: 0\n- bytes in use: 0\n- objects evictable: 0\n- bytes evictable: 0\n\n- objects created by worker: 0\n- bytes created by worker: 0\n- objects restored: 0\n- bytes restored: 0\n- objects received: 0\n- bytes received: 0\n- objects errored: 0\n- bytes errored: 0\n\nEviction Stats:\n(global lru) capacity: 35489466777\n(global lru) used: 0%\n(global lru) num objects: 0\n(global lru) num evictions: 0\n(global lru) bytes evicted: 0]\nRay killed 2 worker(s) based on the killing policy\nConsidered workers: [\nSelected to kill: (Actor(355c7f3e40f64424db3527cb01000000): job ID=01000000, lease ID=070000001bc05c47af17bad825a6aa89852d5fce5787b7a36fab805d1a32af01, task name=ActorGroup:1:FSDPVlaSftWorker.__init__, required resources={}, pid=939267, actual memory used=2.83GB, worker ID=10e42e08574628b5bc92669740f9fb47d03dbf5422804a2a8c718c81)\nSelected to kill: (Actor(95ffd57435d9e3fa7f429b2801000000): job ID=01000000, lease ID=06000000e8a2da33dfccb286f7b0bdeab233795d971ae43278f407e85a68e9cd, task name=ActorGroup:0:FSDPVlaSftWorker.__init__, required resources={}, pid=939264, actual memory used=2.80GB, worker ID=badae0fa25a54ccc8584d240632d57f4a2258261f5ebd1f50f179ab6)\n(Actor(424ed7f9d254bb066c3e71d601000000): job ID=01000000, lease ID=0300000059ef3b952ac91fad8a4c959145b9daaa2c8ec5d951f6b862c70ac9ac, task name=NodeManager:NodeManager.__init__, required resources={}, pid=939262, actual memory used=0.42GB, worker ID=47d52028a11051fd44a5bd6fa753fecdae3aa33982669350b93bfc69)\n(Actor(71571f84331bbdd3e8af2f5d01000000): job ID=01000000, lease ID=020000008bf7aab16910e25b9eb41929c71865eb584e1c72786c3fb4ab30e239, task name=CollectiveManager:CollectiveManager.__init__, required resources={}, pid=939259, actual memory used=0.42GB, worker ID=725691d3afd73c00a61e7791e0ecbd7c84e7e6c29c8a1122f53d8d24)\n(Actor(16707f6b5100a77648262a4901000000): job ID=01000000, lease ID=050000008b58efbc085b133e1e2c40d942e10d5def03a2b2375c5ab54be363e1, task name=PortLockManager:PortLockManager.__init__, required resources={}, pid=939263, actual memory used=0.42GB, worker ID=6efe6c997c31892defd37f802c933a4b5af9a5a3854c16c4981b4bf8)\n(Actor(af41fc976e2a5d2b02a68a8601000000): job ID=01000000, lease ID=010000009566b79d5938e032046c8037ce45ab4315a3eb05ef8f35cb0412cadd, task name=WorkerManager:WorkerManager.__init__, required resources={}, pid=939260, actual memory used=0.42GB, worker ID=4c8545ccabed4e360379233c60f7e65993f35bea7f5fde4979395216)\n(Actor(f470f7dce4da346871278c9801000000): job ID=01000000, lease ID=00000000101c9f761e20927440101d05f64e4e83ecd2e76909e06aa9751cfbf8, task name=NodeProbe_4865d7c8a9bd6322a2c7032ee273b36b4055dda4c294fc1c17f2fe7e:_RemoteNodeProbe.__init__, required resources={}, pid=937067, actual memory used=0.42GB, worker ID=68483fcffe392c27682b62a344f3516baff1bd95bdeac753961e34fb)\n(Actor(2bf764282372674e5553c82c01000000): job ID=01000000, lease ID=0400000020a62aba0438a884675a8b71848b37dc481cfaf50afcf6d83d09667d, task name=DeviceLockManager:DeviceLockManager.__init__, required resources={}, pid=939261, actual memory used=0.42GB, worker ID=c142d67a3b391e22f73445d4f71a100b39e87ef291f3616b7281aa84)\n]\nTotal non-selected idle workers: 39\nTotal non-selected idle workers USS bytes: 1.64GB\nTo see more information about memory usage on this node, use `ray logs raylet.out -ip 198.18.0.1`\nTop 10 memory users: PID\tMEM(GB)\tCOMMAND\n940820\t19.09\t/home/deng/Documents/codebase/RLinf/.venv/bin/python -c from multiprocessing.spawn import spawn_main...\n940892\t14.61\t/home/deng/Documents/codebase/RLinf/.venv/bin/python -c from multiprocessing.spawn import spawn_main...\n940891\t12.53\t/home/deng/Documents/codebase/RLinf/.venv/bin/python -c from multiprocessing.spawn import spawn_main...\n940629\t12.31\t/home/deng/Documents/codebase/RLinf/.venv/bin/python -c from multiprocessing.spawn import spawn_main...\n940743\t10.35\t/home/deng/Documents/codebase/RLinf/.venv/bin/python -c from multiprocessing.spawn import spawn_main...\n940744\t10.23\t/home/deng/Documents/codebase/RLinf/.venv/bin/python -c from multiprocessing.spawn import spawn_main...\n940628\t9.24\t/home/deng/Documents/codebase/RLinf/.venv/bin/python -c from multiprocessing.spawn import spawn_main...\n940821\t9.22\t/home/deng/Documents/codebase/RLinf/.venv/bin/python -c from multiprocessing.spawn import spawn_main...\n939267\t2.83\tray::FSDPVlaSftWorker.run_training\n939264\t2.80\tray::FSDPVlaSftWorker.run_training\n"
+  },
+  "source_fingerprints": [
+    {
+      "path": "/home/deng/Documents/codebase/RLinf/logs/20261027_172946-spiritai_foldbox_pi05_full_bs64/run.log",
+      "sha256": "d1605993958cfe9f9e65bd4f6119b7214da8bc96bd000fa530e47c8987fbbab8"
+    },
+    {
+      "path": "/home/deng/Documents/codebase/RLinf/logs/20261027_172946-spiritai_foldbox_pi05_full_bs64/wandb/wandb/run-20261027_173112-wllwedmv/files/config.yaml",
+      "sha256": "0ca77876141d602af21fbca57d778837269d776462324ef3aa27c221f9e7ccc3"
+    },
+    {
+      "path": "/tmp/ray/session_2026-10-27_17-30-46_647381_936108/logs/raylet.out",
+      "sha256": "22fb5fd50889abd75f9a7088151b910afd31239d787800315721b08018e1511a"
+    }
+  ],
+  "host_memory_evidence": {
+    "file": "formal_run_host_memory.csv",
+    "sample_count": 225,
+    "minimum_sampled_available_GiB": 6.50836181640625
+  },
+  "cpu_isolation": {
+    "hardware": "same host, CPU only; CUDA_VISIBLE_DEVICES empty; no model loaded",
+    "worker_protocol": "Same recorded dataset, transformations, seed and rank-0 sampler; micro batch 8, one spawn worker. Stop after about 75 s at a 10-batch boundary, worker RSS above 6500 MiB, or 300 batches; outer hard timeout 100 s.",
+    "case_methods": {
+      "stateful": "Original stateful loader",
+      "torch": "Ordinary torch DataLoader with the same dataset and loader arguments",
+      "trim": "Stateful loader, gc.collect plus libc malloc_trim(0) each 64 sample reads",
+      "malloc_only": "Stateful loader, only libc malloc_trim(0) each 64 sample reads",
+      "gc_only": "Stateful loader, only gc.collect each 64 sample reads",
+      "arena2": "Original stateful loader with MALLOC_ARENA_MAX=2 inherited by child"
+    },
+    "results": [
+      {
+        "case": "stateful",
+        "first": {
+          "case": "stateful",
+          "batches": 10,
+          "samples": 80,
+          "elapsed_s": 12.726480467012152,
+          "worker_pid": 995641,
+          "worker_rss_MiB": 2136.2421875,
+          "worker_uss_MiB": 1483.1953125
+        },
+        "last": {
+          "case": "stateful",
+          "batches": 90,
+          "samples": 720,
+          "elapsed_s": 75.63095705400337,
+          "worker_pid": 995641,
+          "worker_rss_MiB": 6021.6953125,
+          "worker_uss_MiB": 5351.68359375
+        },
+        "exit_code": 0
+      },
+      {
+        "case": "torch",
+        "first": {
+          "case": "torch",
+          "batches": 10,
+          "samples": 80,
+          "elapsed_s": 12.591166564001469,
+          "worker_pid": 996762,
+          "worker_rss_MiB": 2139.08203125,
+          "worker_uss_MiB": 1424.07421875
+        },
+        "last": {
+          "case": "torch",
+          "batches": 90,
+          "samples": 720,
+          "elapsed_s": 75.34476353798527,
+          "worker_pid": 996762,
+          "worker_rss_MiB": 4864.3359375,
+          "worker_uss_MiB": 3938.0703125
+        },
+        "exit_code": 0
+      },
+      {
+        "case": "trim",
+        "first": {
+          "case": "trim",
+          "batches": 10,
+          "samples": 80,
+          "elapsed_s": 12.870905656018294,
+          "worker_pid": 996707,
+          "worker_rss_MiB": 1651.17578125,
+          "worker_uss_MiB": 943.25
+        },
+        "last": {
+          "case": "trim",
+          "batches": 90,
+          "samples": 720,
+          "elapsed_s": 77.26409109900123,
+          "worker_pid": 996707,
+          "worker_rss_MiB": 1912.0859375,
+          "worker_uss_MiB": 986.15234375
+        },
+        "exit_code": 0
+      },
+      {
+        "case": "malloc_only",
+        "first": {
+          "case": "malloc_only",
+          "batches": 10,
+          "samples": 80,
+          "elapsed_s": 12.895932371990057,
+          "worker_pid": 998385,
+          "worker_rss_MiB": 1718.0703125,
+          "worker_uss_MiB": 1009.55078125
+        },
+        "last": {
+          "case": "malloc_only",
+          "batches": 90,
+          "samples": 720,
+          "elapsed_s": 76.54618244399899,
+          "worker_pid": 998385,
+          "worker_rss_MiB": 1926.203125,
+          "worker_uss_MiB": 1002.98828125
+        },
+        "exit_code": 0
+      },
+      {
+        "case": "gc_only",
+        "first": {
+          "case": "gc_only",
+          "batches": 10,
+          "samples": 80,
+          "elapsed_s": 13.04693059399142,
+          "worker_pid": 998439,
+          "worker_rss_MiB": 1970.77734375,
+          "worker_uss_MiB": 1255.296875
+        },
+        "last": {
+          "case": "gc_only",
+          "batches": 90,
+          "samples": 720,
+          "elapsed_s": 78.22956651699496,
+          "worker_pid": 998439,
+          "worker_rss_MiB": 5342.71875,
+          "worker_uss_MiB": 4416.27734375
+        },
+        "exit_code": 0
+      },
+      {
+        "case": "arena2",
+        "first": {
+          "case": "arena2",
+          "batches": 10,
+          "samples": 80,
+          "elapsed_s": 12.739831195009174,
+          "worker_pid": 998480,
+          "worker_rss_MiB": 1859.421875,
+          "worker_uss_MiB": 1143.47265625
+        },
+        "last": {
+          "case": "arena2",
+          "batches": 90,
+          "samples": 720,
+          "elapsed_s": 76.09727636398748,
+          "worker_pid": 998480,
+          "worker_rss_MiB": 4110.1875,
+          "worker_uss_MiB": 3186.359375
+        },
+        "exit_code": 0
+      }
+    ],
+    "raw_rows_file": "loader_memory_diagnostics.csv",
+    "single_item_read": {
+      "mode": "full transformed dataset, no batching/IPC; tracemalloc enabled",
+      "observed_samples": 400,
+      "initial_rss_MiB": 2709.8125,
+      "last_rss_MiB": 2935.12890625,
+      "exit_code": 124,
+      "termination": "Intentional 100-second wall-time cap, not a data error."
+    },
+    "same_video_decode": {
+      "calls": 300,
+      "initial_rss_MiB": 893.3671875,
+      "last_rss_MiB": 1001.5703125,
+      "exit_code": 0,
+      "notes": "One file, torchcodec, gc.collect every 25 calls; not equivalent to shuffled full data loading."
+    }
+  },
+  "findings": [
+    "Formal training exited because Ray terminated both actors at its physical host-memory threshold after 506 updates.",
+    "The dominant memory owners were the eight data subprocesses; no formal checkpoint had been written.",
+    "Ordinary and stateful DataLoader cases both grow in CPU-only isolation.",
+    "Only malloc_trim bounds most observed RSS growth in the short diagnostic; GC alone does not. This points to retained free native-heap pages/fragmentation as a major mechanism, without attributing allocations to one dependency.",
+    "MALLOC_ARENA_MAX=2 reduces occupancy but still grows; it is not a verified long-run fix.",
+    "No production code was changed and formal training was not restarted. Longer data-only and checkpoint lifecycle validation remain necessary."
+  ]
+}

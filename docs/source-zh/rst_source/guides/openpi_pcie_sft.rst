@@ -5,6 +5,10 @@
 
 以下实测来自 2026-10-27 的 SpiritAI FoldBox 实验：两张 RTX PRO 5000 Blackwell，每卡报告 48,935 MiB，主机约 125 GiB RAM，模型共 3,353,433,872 个参数。数据为三路相机和 25D Cartesian 布局，动作 pad 至网络 32D，horizon 为 50，prompt/state token 上限为 256。这些数值描述一台机器的容量和吞吐；收敛与真机任务成功率需要另行验证。
 
+.. warning::
+
+   随后启动的 5000 步正式实验在完成 506 步后退出：8 个 DataLoader 子进程累计占用约 97.58 GiB，Ray 在主机 RAM 达到 95% 阈值时终止两个 actor。保存间隔为 2500，退出前没有 checkpoint。以下短测不足以证明持续数据读取的长程稳定性；重启前先验证真实数据持续读取，并在下一次运行中提前保存恢复点。
+
 先建立可比较的基线
 --------------------
 
@@ -121,12 +125,34 @@ PHB 允许同 NUMA 节点内经过主桥的 peer 通信，并不会建立 NVLink
 
 测试之后，系统保留原 2 GiB 并新增 30 GiB，swap 总量约为 32 GiB。这项后续运维变更应与通过测试时的条件分开记录。SFT runner 会保留 checkpoint 目录；诊断权重写入失败时，还需检查磁盘保留量。
 
+限制数据子进程的堆内存保留
+----------------------------
+
+持续数据读取与 checkpoint 写入需要分别测量。在第 506 步退出的实验中，普通和 stateful CPU loader 都会增长，单独 Python GC 没有阻止增长，而归还原生堆的空闲页有效。这说明分配器保留的空闲页是重要来源，但还不能将所有分配归因于某一个库。
+
+SpiritAI recipe 现在通过已有 OpenPI dataset wrapper 启用进程内堆回收：
+
+.. code-block:: yaml
+
+   data:
+     num_workers: 4
+     stateful_loader: true
+     worker_malloc_trim_interval: 64
+
+间隔单位是每个 DataLoader 子进程读取的样本数，不是 optimizer 更新数。每 64 次读取，子进程调用 glibc 的 `malloc_trim <https://man7.org/linux/man-pages/man3/malloc_trim.3.html>`_ 归还符合条件的空闲堆页；不会释放活 tensor、改变归一化或抽取随机数。调用仅发生在数据子进程，worker 数为零时不执行。框架默认值为 0，表示关闭；启用要求使用 stateful OpenPI loader，且分配器提供 glibc 的函数。不支持的分配器会在尝试回收时报错。
+
+回收计数器不属于数据 checkpoint。只调整此间隔，不改变 sampler、worker RNG 快照或恢复签名；其他恢复约束仍需保持一致。验证修复时，先让每个 worker 消费至少达到原失败运行的样本量，监控 RSS/USS 和主机可用 RAM，再做有限训练和保存恢复验证。按实验目标选择保存间隔，并单独核算磁盘保留预算。
+
+修复后的两 rank、8 worker CPU 测试消费了 40000 个真实样本，每 worker 至少 5000 个，超过原失败运行约 4048 个。585 秒内完成，最低主机可用 RAM 为 99.59 GiB，单 worker RSS 采样峰值为 2.70 GiB。这相当于 global batch 64 下 625 次更新的读取量，不代表执行了 625 次模型更新或证明多天稳定。
+
 保留预算与运行证据
 --------------------
 
 改变 global batch 时，同时换算样本预算。旧 LoRA 配置为 ``32 × 90000 = 2880000`` 个窗口；global batch 64 对应 45000 次更新，128 对应 22500 次。warmup 和保存间隔也应按相同单位比较。这份继承预算并不是已经验证的全参数收敛要求。
 
 本机手动计划为 scheduler 总计 45000 步、warmup 750 步、每 2500 步保存。首阶段可以在 5000 步停止，并保留 45000 步 schedule 供恢复使用。按确认短测估算，首阶段纯计算约 9.3 小时，完整曝光预算约 3.5 天，另计写入、中断及长程波动。18 份每份约 50 GiB 的 checkpoint 需要约 900 GiB 磁盘。
+
+本轮以长时间双卡工程稳定性为目标，覆盖内存、通信、数据加载和 checkpoint 写入。两个阶段均保持每 2500 步保存：首阶段 5000 步产生两份、约 100 GiB，完整 45000 步产生约 18 份。将发现的问题及证据作为实验结果归档。
 
 将最终 Hydra 配置、完整代码版本、归一化/数据指纹、拓扑与 NCCL 路径日志、计时样本及预热规则、checkpoint 审计放在一起。本次 HEAD 还有未提交改动，所以仅记录 commit hash 不足以重建现场。将小型结果归档到被忽略的日志目录之外。W&B 凭据继续使用已有登录；若全局 CLI 和 venv SDK 默认服务不同，将 ``WANDB_BASE_URL`` 与已登录主机名匹配。
 
@@ -142,3 +168,6 @@ PHB 允许同 NUMA 节点内经过主桥的 peer 通信，并不会建立 NVLink
 * :download:`主机内存样本 <../../../experiments/pi05-flow-only-full/artifacts/host_memory_samples.csv>`
 * :download:`checkpoint 内存审计 <../../../experiments/pi05-flow-only-full/artifacts/checkpoint_memory.csv>`
 * :download:`验证摘要 <../../../experiments/pi05-flow-only-full/artifacts/validation_summary.json>`
+* :download:`修复后的 worker 堆内存样本 <../../../experiments/pi05-flow-only-full/artifacts/worker_heap_reclaim_soak.csv>`
+* :download:`堆回收与恢复审计 <../../../experiments/pi05-flow-only-full/artifacts/worker_heap_reclaim_validation.json>`
+* :download:`更新的手动配置 <../../../experiments/pi05-flow-only-full/artifacts/formal_resolved_heap_reclaim.yaml>`

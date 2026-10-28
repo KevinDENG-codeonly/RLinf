@@ -3629,8 +3629,14 @@ class _OpenPIRandomDataset(torch.utils.data.Dataset):
 
 
 @pytest.mark.parametrize("num_workers", [0, 2])
-def test_openpi_stateful_loader_resumes_consumed_batches(num_workers):
+@pytest.mark.parametrize("trim_interval", [0, 2])
+def test_openpi_stateful_loader_resumes_consumed_batches(num_workers, trim_interval):
     pytest.importorskip("openpi")
+    if trim_interval:
+        import ctypes
+
+        if not hasattr(ctypes.CDLL(None), "malloc_trim"):
+            pytest.skip("Heap reclamation requires glibc malloc_trim.")
     from openpi.training.data_loader import _collate_fn, _worker_init_fn
 
     from rlinf.data.datasets.openpi.official_sft_data_loader import (
@@ -3639,10 +3645,10 @@ def test_openpi_stateful_loader_resumes_consumed_batches(num_workers):
     )
     from rlinf.utils.utils import get_rng_state, set_rng_state
 
-    def loader():
+    def loader(interval=trim_interval):
         dataset = _OpenPIRandomDataset()
         return StatefulOpenPIDataLoader(
-            _OpenPIWorkerDataset(dataset),
+            _OpenPIWorkerDataset(dataset, malloc_trim_interval=interval),
             None,
             {"num_workers": num_workers},
             batch_size=2,
@@ -3663,7 +3669,7 @@ def test_openpi_stateful_loader_resumes_consumed_batches(num_workers):
     snapshot = copy.deepcopy(original.state_dict())
     rng = get_rng_state()
     expected = next(iterator)
-    restored = loader()
+    restored = loader(0)
     restored.load_state_dict(snapshot)
     resumed = iter(restored)
     set_rng_state(rng)
@@ -3674,3 +3680,12 @@ def test_openpi_stateful_loader_resumes_consumed_batches(num_workers):
     incompatible["signature"] = {"num_workers": 99}
     with pytest.raises(ValueError, match="unchanged dataset"):
         restored.load_state_dict(incompatible)
+
+
+@pytest.mark.parametrize("interval", [-1, 1.5, True])
+def test_openpi_worker_dataset_rejects_invalid_trim_interval(interval):
+    pytest.importorskip("openpi")
+    from rlinf.data.datasets.openpi.official_sft_data_loader import _OpenPIWorkerDataset
+
+    with pytest.raises(ValueError, match="nonnegative integer"):
+        _OpenPIWorkerDataset(_OpenPIRandomDataset(), malloc_trim_interval=interval)

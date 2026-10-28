@@ -14,6 +14,15 @@ Cartesian data were padded to the network's 32-D action space, with horizon 50
 and a 256-token prompt/state budget. These are capacity and throughput results
 for one machine; convergence and real-robot success require separate experiments.
 
+.. warning::
+
+   A subsequent 5,000-update formal attempt stopped after update 506: eight
+   DataLoader subprocesses accumulated about 97.58 GiB, and Ray terminated
+   both actors at its 95% host-RAM threshold. No checkpoint had been saved
+   before the configured interval of 2,500. The short benchmarks below do
+   not establish long-run data-loading stability. Validate sustained real-data
+   loading before restarting, and save recovery points early in the next run.
+
 Start From a Comparable Baseline
 ----------------------------------
 
@@ -224,6 +233,48 @@ Swap was increased to about 32 GiB after the tests by retaining 2 GiB and adding
 passed the tests. The SFT runner retains checkpoint directories; account for
 disk retention as well as RAM when diagnosing a failed weight write.
 
+Bound Data-Worker Heap Retention
+---------------------------------
+
+Measure sustained data loading separately from checkpoint writes. In the
+506-update failure, ordinary and stateful CPU loaders both accumulated memory;
+Python garbage collection did not stop the growth. Returning free native-heap
+pages to the operating system did. This identifies retained allocator pages
+as a major contributor, without attributing every allocation to one library.
+
+The SpiritAI recipe now enables per-process heap reclamation in the existing
+OpenPI dataset wrapper:
+
+.. code-block:: yaml
+
+   data:
+     num_workers: 4
+     stateful_loader: true
+     worker_malloc_trim_interval: 64
+
+The interval counts samples read by each DataLoader subprocess, not optimizer
+updates. Every 64 reads, the subprocess invokes glibc's
+`malloc_trim <https://man7.org/linux/man-pages/man3/malloc_trim.3.html>`_
+to return eligible free heap pages. It does not free live tensors, change
+normalization, or draw random numbers. Calls occur only in data subprocesses;
+with zero workers the option has no effect. The framework default is zero
+(disabled), and enabling it requires the stateful OpenPI loader and an
+allocator exporting glibc's function. An unsupported allocator reports an error
+when reclamation is attempted.
+
+The reclamation counter is outside the data checkpoint. Changing only this
+interval leaves the sampler, worker RNG snapshots, and resume signature
+unchanged. Keep the other resume constraints above. Verify the fix by consuming
+at least the failed run's sample count per worker, monitoring RSS/USS and host
+available RAM, then repeat bounded training and checkpoint recovery. Select
+the checkpoint cadence for the experiment and budget its disk usage separately.
+
+The fixed two-rank, eight-worker CPU test consumed 40,000 real samples, at
+least 5,000 per worker, beyond the failed run's roughly 4,048. It completed
+in 585 seconds with minimum available host RAM of 99.59 GiB and a sampled
+maximum worker RSS of 2.70 GiB. This is data-read coverage equivalent to 625
+global-batch-64 updates, not 625 model updates or proof of multi-day stability.
+
 Keep the Budget and Runtime Evidence
 --------------------------------------
 
@@ -239,6 +290,12 @@ saving every 2,500 updates. A first stage can stop at 5,000 while retaining the
 hours of compute for that stage or 3.5 days for the full exposure budget,
 excluding writes, interruptions and long-run variation. About 18 checkpoints
 at 50 GiB each need about 900 GiB of disk.
+
+This run targets sustained two-GPU engineering stability, including memory,
+communication, data loading and checkpoint writes. Keep saving every 2,500
+updates in both stages: the first 5,000 updates produce two checkpoints,
+about 100 GiB, and the complete 45,000-update run produces about 18. Record
+failures and their evidence as part of the experiment.
 
 Keep these records together: the resolved Hydra configuration, complete source
 version, normalization/data fingerprints, topology and NCCL path logs, timed
@@ -266,3 +323,6 @@ assistant helped run and document the finite tests.
 * :download:`Host-memory samples <../../../experiments/pi05-flow-only-full/artifacts/host_memory_samples.csv>`
 * :download:`Checkpoint-memory audit <../../../experiments/pi05-flow-only-full/artifacts/checkpoint_memory.csv>`
 * :download:`Validation summary <../../../experiments/pi05-flow-only-full/artifacts/validation_summary.json>`
+* :download:`Fixed worker heap samples <../../../experiments/pi05-flow-only-full/artifacts/worker_heap_reclaim_soak.csv>`
+* :download:`Heap reclamation and recovery audit <../../../experiments/pi05-flow-only-full/artifacts/worker_heap_reclaim_validation.json>`
+* :download:`Revised manual configuration <../../../experiments/pi05-flow-only-full/artifacts/formal_resolved_heap_reclaim.yaml>`

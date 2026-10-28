@@ -1,0 +1,374 @@
+{
+  "phase": "worker heap reclamation fix",
+  "date_local": "2026-10-28",
+  "branch": "feature/pi05-flow-only-full",
+  "base_head": "3755b3fab48a18a9c95a0c47371e196b1daef45c",
+  "working_tree": "Uncommitted heap reclamation change on top of this HEAD; source hashes identify the validated implementation.",
+  "source_hashes": {
+    "rlinf/data/datasets/openpi/official_sft_data_loader.py": "b0211d8ad3cbab6938c702733ba92b242cc91f4f76c1947e53e3a3f541d87cff",
+    "examples/sft/config/spiritai_sft_openpi_pi05_full.yaml": "fedfa4a107c3cf7794cf2575b55b8fec18c15fb592219caca8a0b971f1da86be",
+    "tests/unit_tests/test_data.py": "ce6874e53908ee3a6c8ce5f869e744f5281e384e1643831c34d6df76ff302a36",
+    "tests/unit_tests/test_models.py": "b4c9e3925601a629865eb52c5d6533a469b1248ded595262b1c5bc5c19de9319"
+  },
+  "implementation": {
+    "data.worker_malloc_trim_interval": 64,
+    "framework_default": 0,
+    "unit": "samples per data subprocess",
+    "call": "glibc malloc_trim(0)",
+    "execution_scope": "DataLoader subprocess only",
+    "rng_or_data_changes": false
+  },
+  "environment": {
+    "torch": "2.11.0+cu130",
+    "torchdata": "0.11.0",
+    "lerobot": "0.3.3",
+    "libc": [
+      "glibc",
+      "2.35"
+    ]
+  },
+  "cpu_unit_tests": {
+    "data_cases": 7,
+    "model_cases": 4,
+    "result": "passed",
+    "resume_comparison": "Enable trim when saving, disable when restoring; next observation and action match exactly."
+  },
+  "real_data_soak": {
+    "exit_codes": [
+      0,
+      0
+    ],
+    "stop_reason": null,
+    "wall_seconds": 585.0099556446075,
+    "memory_sample_count": 253,
+    "minimum_host_available_GiB": 99.59128189086914,
+    "peak_aggregate_diagnostic_rss_GiB": 24.007308959960938,
+    "peak_individual_worker_rss_GiB": 2.7004165649414062,
+    "source_sha256": "b0211d8ad3cbab6938c702733ba92b242cc91f4f76c1947e53e3a3f541d87cff"
+  },
+  "rank_results": [
+    {
+      "rank": 0,
+      "pid": 1041025,
+      "requested_batches": 2500,
+      "first_batch": {
+        "action_shape": [
+          8,
+          50,
+          32
+        ],
+        "action_sha256": "e1ca1195266fb5d92acbf5acdbd9b194a8f9c3d7cbcc3a6e6bd83e8570503d46",
+        "state_shape": [
+          8,
+          32
+        ],
+        "state_sha256": "97dc40edd34f7cbca19e72cfbfa06f64ce69682aca8f7693319c4dd820037e1f"
+      },
+      "last_batch": {
+        "action_shape": [
+          8,
+          50,
+          32
+        ],
+        "action_sha256": "b914b28c55b6e4300648be657f7d35a3631127a5c604452aeadc2e6e5a2059e4",
+        "state_shape": [
+          8,
+          32
+        ],
+        "state_sha256": "14ac83d1ba3e90adde73a690acb4781639073b56568091003249a2cea0e5ea08"
+      },
+      "completed_batches": 2500,
+      "consumed_samples_per_rank": 20000,
+      "consumed_samples_per_worker": 5000,
+      "wall_seconds_after_loader_build": 562.5147626399994
+    },
+    {
+      "rank": 1,
+      "pid": 1041026,
+      "requested_batches": 2500,
+      "first_batch": {
+        "action_shape": [
+          8,
+          50,
+          32
+        ],
+        "action_sha256": "bb07d4fb3be7ceaa81a1afa21396a19ec46316821cd01280add8ac5fa1e80c7b",
+        "state_shape": [
+          8,
+          32
+        ],
+        "state_sha256": "66e83b4b9dd84be4cff27144579e6bb35cf66d6792d5def6b0148c55fb9084ec"
+      },
+      "last_batch": {
+        "action_shape": [
+          8,
+          50,
+          32
+        ],
+        "action_sha256": "8c0525bd6362ec982c07fc4d04705dabd56b92ccf14a1c7b56a9b1d43c11f309",
+        "state_shape": [
+          8,
+          32
+        ],
+        "state_sha256": "462b7d0b3dd4baa06c5f387f0b4c98f8af90e631e983d708ff185d4c5952f356"
+      },
+      "completed_batches": 2500,
+      "consumed_samples_per_rank": 20000,
+      "consumed_samples_per_worker": 5000,
+      "wall_seconds_after_loader_build": 553.9647960662842
+    }
+  ],
+  "soak_configuration": {
+    "actor_ranks": 2,
+    "data_workers_per_rank": 4,
+    "micro_batch_per_rank": 8,
+    "data.worker_malloc_trim_interval": 64,
+    "seed": 42,
+    "total_consumed_samples": 40000,
+    "optimizer_update_read_equivalent": 625,
+    "model_loaded": false,
+    "optimizer_updates_performed": 0,
+    "minimum_consumed_samples_per_worker": 5000,
+    "prior_failure_samples_per_worker": 4048,
+    "host_available_stop_GiB": 20,
+    "aggregate_RSS_stop_GiB": 70,
+    "timeout_s": 900
+  },
+  "per_worker_sampled_peaks": {
+    "1042050": {
+      "rank": 0,
+      "rss_GiB": 2.463062286376953,
+      "uss_GiB": 1.2327003479003906
+    },
+    "1042091": {
+      "rank": 1,
+      "rss_GiB": 2.7004165649414062,
+      "uss_GiB": 1.4238967895507812
+    },
+    "1042346": {
+      "rank": 0,
+      "rss_GiB": 2.287933349609375,
+      "uss_GiB": 1.1604690551757812
+    },
+    "1042387": {
+      "rank": 1,
+      "rss_GiB": 2.3290138244628906,
+      "uss_GiB": 1.300689697265625
+    },
+    "1042712": {
+      "rank": 0,
+      "rss_GiB": 2.444488525390625,
+      "uss_GiB": 1.2474861145019531
+    },
+    "1042759": {
+      "rank": 1,
+      "rss_GiB": 2.492206573486328,
+      "uss_GiB": 1.3597640991210938
+    },
+    "1042984": {
+      "rank": 0,
+      "rss_GiB": 2.3982925415039062,
+      "uss_GiB": 1.1914596557617188
+    },
+    "1043024": {
+      "rank": 1,
+      "rss_GiB": 2.358745574951172,
+      "uss_GiB": 1.24761962890625
+    }
+  },
+  "post_failure_read_count_phase": {
+    "memory_samples": 43,
+    "minimum_host_available_GiB": 101.52070999145508,
+    "max_worker_rss_GiB": 2.7004165649414062
+  },
+  "scope": "Passes 40000 real data reads, 20 dual-GPU updates, save20, new-process resume21 and save21. No uninterrupted-vs-resumed parameter comparison or full 45000-step run was performed.",
+  "gpu_regression": {
+    "heap_reclaim_train20": {
+      "exit_code": 0,
+      "wall_seconds": 263.9248375892639,
+      "completed_optimizer_steps": 20,
+      "discarded_warmup_steps": 3,
+      "measured_mean_s": 6.607723996000406,
+      "measured_min_s": 6.339309127011802,
+      "measured_max_s": 7.05045689700637,
+      "all_metrics_finite": true,
+      "host_memory": {
+        "samples": 482,
+        "minimum_available_GiB": 56.379791259765625,
+        "maximum_cgroup_anon_GiB": 57.244606018066406,
+        "minimum_swap_free_GiB": 29.814441680908203
+      },
+      "peak_gpu_used_MiB": {
+        "0": 47456.0,
+        "1": 46837.0
+      }
+    },
+    "heap_reclaim_resume21": {
+      "exit_code": 0,
+      "wall_seconds": 160.70942068099976,
+      "completed_optimizer_steps": 1,
+      "discarded_warmup_steps": 0,
+      "measured_mean_s": 25.250360728008673,
+      "measured_min_s": 25.250360728008673,
+      "measured_max_s": 25.250360728008673,
+      "all_metrics_finite": true,
+      "host_memory": {
+        "samples": 293,
+        "minimum_available_GiB": 57.71437454223633,
+        "maximum_cgroup_anon_GiB": 56.71118927001953,
+        "minimum_swap_free_GiB": 28.835647583007812
+      },
+      "peak_gpu_used_MiB": {
+        "0": 47678.0,
+        "1": 48237.0
+      }
+    },
+    "timing_scope": "Native time/training from local W&B history; the resumed update includes cold initialization and is not a steady-state estimate.",
+    "test_schedule": "Bounded checks use warmup 0 and lr=min_lr=1e-5; manual formal schedule remains warmup750/total45000.",
+    "numerical_comparison_to_old_confirm": {
+      "loss_max_abs_difference": 0.0,
+      "grad_norm_max_abs_difference": 0.0
+    }
+  },
+  "checkpoint_audit": [
+    {
+      "case": "heap_reclaim_train20",
+      "checkpoint": "/home/deng/Documents/codebase/RLinf/logs/spiritai_failure_20261028/heap_reclaim_train20/spiritai_foldbox_tune_heap_reclaim_train20/checkpoints/global_step_20/actor",
+      "optimizer_step": 20,
+      "optimizer_state_count": 667,
+      "optimizer_step_values": [
+        0.0,
+        20.0
+      ],
+      "active_state_count": 665,
+      "zero_step_states": [
+        "fsdp_checkpoint.optimizers.state.llm.final_norms.0.scale.step",
+        "fsdp_checkpoint.optimizers.state.llm.layers.17.pre_ffw_norms.0.scale.step"
+      ],
+      "consumed_microbatches_per_rank": [
+        80,
+        80
+      ],
+      "rng_checkpoint": true,
+      "full_weights_bytes": 13413970310,
+      "payload_bytes": 53664277542,
+      "files": [
+        {
+          "path": "data.pt",
+          "bytes": 118229
+        },
+        {
+          "path": "rng.pt",
+          "bytes": 27701
+        },
+        {
+          "path": "model_state_dict/full_weights.pt",
+          "bytes": 13413970310
+        },
+        {
+          "path": "dcp_checkpoint/.metadata",
+          "bytes": 1513091
+        },
+        {
+          "path": "dcp_checkpoint/__1_0.distcp",
+          "bytes": 20123122522
+        },
+        {
+          "path": "dcp_checkpoint/__0_0.distcp",
+          "bytes": 20125525689
+        }
+      ],
+      "scheduler": {
+        "fsdp_checkpoint.lr_schedulers.0.last_epoch": 20,
+        "fsdp_checkpoint.lr_schedulers.0._step_count": 21,
+        "fsdp_checkpoint.lr_schedulers.0._last_lr": [
+          1e-05
+        ]
+      }
+    },
+    {
+      "case": "heap_reclaim_resume21",
+      "checkpoint": "/home/deng/Documents/codebase/RLinf/logs/spiritai_failure_20261028/heap_reclaim_resume21/spiritai_foldbox_tune_heap_reclaim_resume21/checkpoints/global_step_21/actor",
+      "optimizer_step": 21,
+      "optimizer_state_count": 667,
+      "optimizer_step_values": [
+        0.0,
+        21.0
+      ],
+      "active_state_count": 665,
+      "zero_step_states": [
+        "fsdp_checkpoint.optimizers.state.llm.final_norms.0.scale.step",
+        "fsdp_checkpoint.optimizers.state.llm.layers.17.pre_ffw_norms.0.scale.step"
+      ],
+      "consumed_microbatches_per_rank": [
+        84,
+        84
+      ],
+      "rng_checkpoint": true,
+      "full_weights_bytes": 13413970310,
+      "payload_bytes": 53664277544,
+      "files": [
+        {
+          "path": "data.pt",
+          "bytes": 118229
+        },
+        {
+          "path": "rng.pt",
+          "bytes": 27701
+        },
+        {
+          "path": "model_state_dict/full_weights.pt",
+          "bytes": 13413970310
+        },
+        {
+          "path": "dcp_checkpoint/.metadata",
+          "bytes": 1513093
+        },
+        {
+          "path": "dcp_checkpoint/__1_0.distcp",
+          "bytes": 20123122522
+        },
+        {
+          "path": "dcp_checkpoint/__0_0.distcp",
+          "bytes": 20125525689
+        }
+      ],
+      "scheduler": {
+        "fsdp_checkpoint.lr_schedulers.0.last_epoch": 21,
+        "fsdp_checkpoint.lr_schedulers.0._step_count": 22,
+        "fsdp_checkpoint.lr_schedulers.0._last_lr": [
+          1e-05
+        ]
+      }
+    },
+    {
+      "representative_weight_update_max_abs": {
+        "action_out_proj.weight": 9.653158485889435e-06,
+        "img.stem.weight": 7.94045627117157e-06,
+        "llm.layers.0.attn.q_proj.0.weight": 8.526258170604706e-06
+      },
+      "exported_parameter_tensors": 667,
+      "exported_numel": 3353433872,
+      "resume_signatures_equal": true
+    }
+  ],
+  "temporary_checkpoint_cleanup": {
+    "scope": "Only the two newly generated heap-reclamation regression checkpoints, after optimizer/scheduler/loader/RNG/weight audits. Earlier and formal-run outputs are retained.",
+    "targets": [
+      {
+        "checkpoint_root": "/home/deng/Documents/codebase/RLinf/logs/spiritai_failure_20261028/heap_reclaim_train20/spiritai_foldbox_tune_heap_reclaim_train20/checkpoints",
+        "files": 6,
+        "payload_bytes": 53664277542,
+        "checkpoint_step": 20
+      },
+      {
+        "checkpoint_root": "/home/deng/Documents/codebase/RLinf/logs/spiritai_failure_20261028/heap_reclaim_resume21/spiritai_foldbox_tune_heap_reclaim_resume21/checkpoints",
+        "files": 6,
+        "payload_bytes": 53664277544,
+        "checkpoint_step": 21
+      }
+    ],
+    "total_payload_bytes": 107328555086,
+    "deleted": true
+  }
+}

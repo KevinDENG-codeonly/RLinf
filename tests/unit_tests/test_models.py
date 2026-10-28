@@ -1613,3 +1613,4 @@ def test_spiritai_training_recipe_enables_state_and_full_parameters():
     assert cfg.actor.model.openpi.action_expert_variant == "gemma_300m"
     assert cfg.runner.logger.logger_backends == ["wandb"]
     assert cfg.actor.fsdp_config.sharding_strategy == "full_shard"
+    assert cfg.data.worker_malloc_trim_interval == 64

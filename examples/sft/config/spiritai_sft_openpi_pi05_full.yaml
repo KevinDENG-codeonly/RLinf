@@ -30,6 +30,8 @@ data:
   train_data_paths: /path/to/spiritai_dataset
   num_workers: 4
   stateful_loader: true
+  # Sample reads per subprocess; 0 disables glibc heap reclamation.
+  worker_malloc_trim_interval: 64
 
 actor:
   group_name: ActorGroup

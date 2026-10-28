@@ -435,6 +435,8 @@ Cartesian 布局共 25 维：左臂位姿（6）、psi（1）、夹爪（1），
 
 可选的 ``data.stateful_loader=true`` 通过现有 SFT checkpoint 接口保存已消费的数据位置和 worker 随机状态。该 loader 暴露有限 epoch，由 SFT worker 在每个 epoch 更新分布式 sampler。恢复时，在相同训练命令后添加 ``+runner.resume_dir=/path/to/checkpoints/global_step_5000``。保持数据内容、变换、stats、rank 布局、micro batch、worker 数和 seed 一致。数据集和 stats 应与实验记录一起保留，权重文件不会打包这些资产。
 
+本 recipe 在 glibc 系统上还设置 ``data.worker_malloc_trim_interval=64``，由各数据子进程归还符合条件的空闲堆页，设为 0 可关闭。此分配器设置不改变数据恢复签名，持续内存检查见 :doc:`PCIe 调优指南 <../../guides/openpi_pcie_sft>`。
+
 使用已有 SpiritAI container 部署训练结果，步骤见 :doc:`真机评测 <../../evaluations/guides/realworld>`。RLinf RTC 在推理时引导采样，本 recipe 训练普通 flow-matching 目标，不使用干净动作前缀训练或仅对后缀计算 loss。
 
 评测

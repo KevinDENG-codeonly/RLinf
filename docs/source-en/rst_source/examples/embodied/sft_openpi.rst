@@ -523,6 +523,12 @@ to the same training command. Keep data contents, transforms, stats, rank
 layout, micro batch, worker count, and seed unchanged. Keep the dataset and
 stats alongside the experiment record; they are not bundled in the weights.
 
+On glibc systems, this recipe also sets
+``data.worker_malloc_trim_interval=64`` to return eligible free heap pages in
+each data subprocess. Zero disables it. This allocator setting does not alter
+the data resume signature; see the sustained-memory checks in the
+:doc:`PCIe tuning guide <../../guides/openpi_pcie_sft>`.
+
 Deploy the resulting checkpoint through the existing SpiritAI container:
 :doc:`Real-world evaluation <../../evaluations/guides/realworld>`.
 RLinf RTC guides sampling at inference time, while this recipe trains the
