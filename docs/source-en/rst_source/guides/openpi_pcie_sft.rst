@@ -1,11 +1,11 @@
 Tune OpenPI SFT on PCIe GPUs
 ==============================
 
-Use this guide to measure and tune full-parameter OpenPI SFT when PCIe
-communication and memory capacity limit a multi-GPU run. Start from the
-:doc:`OpenPI SFT recipe <../examples/embodied/sft_openpi>`, verify the actual
-transport, increase the per-GPU micro batch, and validate checkpoint recovery
-before committing a long training budget.
+Use this guide to diagnose communication and memory limits in full-parameter
+and explicit-subtask LoRA OpenPI SFT. Start from the
+:doc:`OpenPI SFT recipe <../examples/embodied/sft_openpi>`, establish the update
+and sample counts, check collective ordering and the actual transport, then
+measure microbatch changes and checkpoint recovery before a long run.
 
 The measurements below come from a 2026-10-27 SpiritAI FoldBox experiment on
 two RTX PRO 5000 Blackwell GPUs, each reporting 48,935 MiB, with about 125 GiB
@@ -55,6 +55,52 @@ The shared SpiritAI YAML keeps conservative defaults of global batch 32 and
 micro batch 1. Record the resolved runtime configuration, including CLI
 overrides: selecting that YAML by name alone does not select the tuned
 64/8 configuration.
+
+.. _openpi-subtask-collective-order:
+
+Check Collective Ordering Before Bandwidth
+--------------------------------------------
+
+A run that stops advancing needs a correctness check before bandwidth tuning.
+On 2026-11-02, explicit-subtask LoRA stopped after update 13. Both GPUs showed
+100% utilization at about 86 W against a 300 W limit, with near-zero sampled
+memory activity. Utilization reports time with a running kernel, not useful
+arithmetic throughput; a communication wait can look busy.
+
+The first unequal CE chunk counts occurred in update 14: one rank supervised
+98 tokens and the other 69. With ``ce_chunk_size=32``, the former implementation
+entered the FSDP-wrapped output module four times on one rank and three on the
+other. Those entries could issue different collective sequences. A CPU/Gloo
+negative control reproduced an explicit collective-mismatch error. Faster
+interconnects, larger GPUs, and longer timeouts do not repair that ordering;
+the same invariant applies within each sharding group on a larger cluster.
+
+The output module now receives all local supervised hidden states and targets
+in one forward. It computes its local projection/CE chunks internally while
+the FSDP parameter views are available. Each rank enters the wrapper once,
+while its number of local chunks can differ. The change preserves the
+shifted response/EOS targets, per-example reduction, LoRA scope, and loss
+weights. Keep this boundary when changing the objective; equal branch order
+alone is insufficient if a rank-local loop calls a sharded module.
+
+Regression tests cover a real small Pi0 loss, full-versus-chunked loss and
+input gradients, and real FSDP with two and four CPU ranks using unequal
+lengths, including 98/69 and 1/32/33/65. The model/FSDP suites passed 166 tests;
+two dependency/GPU cases were skipped. A manually restarted GPU run had
+completed 147 updates in the archived snapshot, beyond the former trigger.
+This does not establish completion of its planned 5,000 updates or task quality.
+The :download:`collective validation record
+<../../../experiments/pi05-explicit-subtask-ce-lora/artifacts/collective_fix_validation.json>`
+preserves the trigger and verification scope.
+
+For a diagnostic launch, ``TORCH_DISTRIBUTED_DEBUG=DETAIL`` can make mismatched
+collectives explicit. Check whether a rank first failed, entered another
+branch, or issued an extra module call. Follow the
+`NCCL collective contract
+<https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/collectives.html>`_
+when interpreting these errors. A short smoke test that never samples unequal
+response lengths does not exercise this contract. Start and stop experiment
+training manually; a running worker must be restarted to load the correction.
 
 Verify the Transport
 ----------------------
@@ -181,6 +227,79 @@ loss sequences need not match. Short finite-loss checks do not establish
 convergence. For kernel, communication and data-wait attribution, use
 :doc:`Profiling <profile>`; these measurements used transport logs and
 controlled runs, without a GPU timeline.
+
+.. _openpi-joint-update-timing:
+
+Compare Joint LoRA and Flow-Only Update Times
+----------------------------------------------
+
+Establish which unit a reported second count measures before attributing a
+slowdown to LoRA. Local W&B history snapshots compare optimizer updates 11–80
+of the completed 2026-10-28 full-parameter run and the restarted 2026-11-02
+joint-LoRA run. Each window has 70 measurements and no checkpoint writes.
+The recorded joint run used global batch 32 and micro batch 2. The current
+recipe uses 64/8, four accumulation rounds, and 32 HL plus 32 LL records per
+update. Keep these configurations separate when comparing timings.
+
+.. list-table:: Descriptive comparison on the same two-GPU workstation
+   :header-rows: 1
+
+   * - Quantity
+     - Flow-only full parameters
+     - Subtask CE + flow LoRA
+   * - Global batch / micro batch per GPU
+     - 64 / 8
+     - 32 / 2
+   * - Accumulation rounds per GPU
+     - 4 LL
+     - 4 HL + 4 LL
+   * - HL records / action windows per update
+     - 0 / 64
+     - 16 / 16
+   * - Mean seconds per optimizer update
+     - 6.586
+     - 5.745
+   * - Mean divided by accumulation rounds
+     - 1.647
+     - 0.718
+   * - Action windows per second
+     - 9.717
+     - 2.785
+
+The divided values are arithmetic allocations of update time, not measured
+standalone microbatch or single-GPU latency. If a reported 1.6 seconds refers
+to the former 6.586/4 allocation, comparing it with a complete joint update
+mixes units. A result from another single-GPU or JAX run needs its own config
+and timing scope. The recorded joint update is shorter in this window, but processes
+fewer action windows and also learns text. This is not a controlled measure
+of the isolated effect of LoRA or of task quality.
+
+The source establishes the following work differences:
+
+* Each rank executes eight microbatch rounds instead of four. Smaller batches
+  amortize launch and FSDP parameter-gather costs across fewer records.
+* Four rounds train text using the VLM plus a 257,152-class projection from
+  hidden width 2,048 and token CE. Teacher forcing predicts all response
+  positions in a VLM pass; training does not run token-by-token generation.
+  HL/LL use alternating records, rather than executing both losses on every
+  record.
+* Frozen base weights still perform dense operations and, where needed,
+  propagate activation gradients to adapters. ``full_shard`` still gathers
+  weights for active modules. The optimizer only updates adapters, but FSDP1
+  units mixing frozen weights with adapters can allocate and reduce gradients
+  for the whole flat parameter. Trainable-parameter counts therefore do not
+  establish gradient communication volume or runtime savings.
+
+Both runs enable activation checkpointing and disable ``torch_compile``.
+These are shared costs, not newly introduced explanations. ``no_sync`` delays
+gradient synchronization without removing parameter gathering. The
+``time/training`` interval also contains batch waiting; ``time/step`` includes
+checkpoint work when saving. No phase-level profiler was collected, so do
+not assign a measured number of seconds or percentage to CE, recomputation,
+communication, or loading. See :doc:`Profiling <profile>` for that next
+measurement. The :download:`timing comparison
+<../../../experiments/pi05-explicit-subtask-ce-lora/artifacts/timing_comparison.json>`
+contains the source run IDs, counts, and complete selected timing rows.
 
 Prove Recovery and Memory Reuse
 ---------------------------------

@@ -372,7 +372,28 @@ def get_model(cfg: DictConfig):
     ):
         model = model.to(Worker.torch_device_type)
 
-    if cfg.is_lora:
+    if (
+        cfg.is_lora
+        and model_type == SupportedModel.OPENPI.value
+        and cfg.get("lora_target_scope") == "openpi_experts"
+    ):
+        from rlinf.models.embodiment.openpi.lora import configure_lora
+
+        if cfg.get("lora_path"):
+            raise ValueError(
+                "Native OpenPI LoRA uses the FSDP resume checkpoint; lora_path "
+                "is reserved for PEFT adapters."
+            )
+        configure_lora(
+            model,
+            vlm_rank=int(cfg.lora_rank),
+            expert_rank=int(cfg.get("lora_expert_rank", cfg.lora_rank)),
+            vlm_alpha=float(cfg.get("lora_alpha", cfg.lora_rank)),
+            expert_alpha=float(
+                cfg.get("lora_expert_alpha", cfg.get("lora_expert_rank", cfg.lora_rank))
+            ),
+        )
+    elif cfg.is_lora:
         from peft import (
             LoraConfig,
             PeftModel,

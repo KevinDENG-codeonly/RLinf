@@ -14,16 +14,24 @@
 
 from __future__ import annotations
 
+import dataclasses
+import time
 from typing import Any, Literal, Sequence
 
 import numpy as np
 import torch
 
 from rlinf.models.embodiment.openpi.env_io import EnvIO
+from rlinf.models.embodiment.openpi.hierarchical import (
+    HierarchicalConfig,
+    SubtaskPlanningState,
+    SubtaskTokenizer,
+)
 from rlinf.models.embodiment.openpi.modules.model import preprocess_observation
 from rlinf.models.embodiment.openpi.pi0 import Pi0
 from rlinf.models.embodiment.openpi.pi0_config import Pi0Config
 from rlinf.models.embodiment.openpi.rlt_config import OpenPiPytorchRLTConfig
+from rlinf.models.embodiment.openpi.transforms.env import repack_env_obs
 
 
 class Pi0Eval(EnvIO, Pi0):
@@ -39,6 +47,7 @@ class Pi0Eval(EnvIO, Pi0):
         config_name: str = "",
         state_indices: Sequence[int] | None = None,
         rlt_cfg: OpenPiPytorchRLTConfig | None = None,
+        hierarchical_cfg: HierarchicalConfig | None = None,
         rtc_enabled: bool = False,
         rtc_guidance_mode: str = "approx",
         rtc_guidance_clip: float = 5.0,
@@ -51,10 +60,65 @@ class Pi0Eval(EnvIO, Pi0):
             config_name=config_name,
             state_indices=state_indices,
             rlt_cfg=rlt_cfg,
+            hierarchical_cfg=hierarchical_cfg,
         )
         self.rtc_enabled = rtc_enabled
         self.rtc_guidance_mode = rtc_guidance_mode
         self.rtc_guidance_clip = rtc_guidance_clip
+        if self.hierarchical_cfg.enabled:
+            self.subtask_tokenizer = SubtaskTokenizer(
+                config.max_token_len, self.hierarchical_cfg.max_subtask_tokens
+            )
+
+    @torch.no_grad()
+    def predict_subtask_batch(
+        self, env_obs: dict[str, Any]
+    ) -> tuple[list[str], dict[str, Any]]:
+        """Generate explicit subtasks from current observations and overall instructions."""
+        if not self.hierarchical_cfg.enabled:
+            raise ValueError(
+                "Subtask generation requires openpi.hierarchical.enabled=true."
+            )
+        started = time.perf_counter()
+        repacked = repack_env_obs(
+            self.config_name, env_obs, select_state=self._select_configured_state
+        )
+        processed = self.input_transform(repacked, transpose=False)
+        observation = self._observation_dict_to_device(processed)
+        instructions = env_obs["task_descriptions"]
+        if len(instructions) != observation.state.shape[0]:
+            raise ValueError("Expected one overall instruction per observation.")
+        tokens = []
+        for index, instruction in enumerate(instructions):
+            state = None
+            if self._config.discrete_state_input:
+                # Training discretizes normalized state before the FP32
+                # projection cast, which can move values across bin edges.
+                state = processed["state"][index, : self.action_env_dim].cpu().numpy()
+            tokens.append(self.subtask_tokenizer.encode(instruction, state=state))
+        observation = dataclasses.replace(
+            observation,
+            **{
+                key: torch.as_tensor(
+                    np.stack([item[key] for item in tokens]), device=self.device
+                )
+                for key in tokens[0]
+            },
+        )
+        generated, finished = self.sample_subtask_tokens(
+            observation, eos_token_id=self.subtask_tokenizer.processor.eos_id()
+        )
+        subtasks = [
+            self.subtask_tokenizer.decode(ids) for ids in generated.cpu().tolist()
+        ]
+        if any(not text for text in subtasks):
+            raise RuntimeError(
+                "The planner generated an empty subtask; action execution was not started."
+            )
+        return subtasks, {
+            "subtask_eos": finished.cpu().tolist(),
+            "planning_seconds": time.perf_counter() - started,
+        }
 
     @torch.no_grad()
     def predict_action_batch(
@@ -66,6 +130,7 @@ class Pi0Eval(EnvIO, Pi0):
         noise: torch.Tensor | None = None,
         rng: torch.Generator | None = None,
         rtc_context=None,
+        subtask_state: SubtaskPlanningState | None = None,
         **kwargs,
     ) -> tuple[torch.Tensor, dict[str, Any]]:
         del compute_values, kwargs
@@ -74,16 +139,50 @@ class Pi0Eval(EnvIO, Pi0):
                 f"{type(self).__name__} only supports predict_action_batch(mode='eval'); "
                 "use a training task wrapper (rl / dagger / dsrl) for train rollouts."
             )
+        planning_info = {}
+        if self.hierarchical_cfg.enabled:
+            state = (
+                subtask_state if subtask_state is not None else SubtaskPlanningState()
+            )
+            instructions = list(env_obs["task_descriptions"])
+            planned = state.should_plan(
+                instructions, self.hierarchical_cfg.planning_interval
+            )
+            changed = False
+            if planned:
+                subtasks, planning_info = self.predict_subtask_batch(env_obs)
+                changed = state.subtasks is not None and subtasks != state.subtasks
+                state.update(instructions, subtasks)
+            if changed:
+                rtc_context = None
+            env_obs = {**env_obs, "task_descriptions": state.subtasks}
+            planning_info.update(
+                {
+                    "subtasks": state.subtasks,
+                    "subtask_regenerated": planned,
+                    "subtask_changed": changed,
+                }
+            )
+        # Rebuild the low-level context from observation + subtask only. The
+        # high-level KV cache contains the overall instruction and is never reused.
         observation = self.env_obs_to_observation(env_obs)
         if rtc_context is not None and self.rtc_enabled:
             if self.rtc_guidance_mode != "approx":
                 raise NotImplementedError(
                     f"Unsupported RTC guidance mode: {self.rtc_guidance_mode!r}"
                 )
-            return self._predict_eval_with_rtc(
+            actions, result = self._predict_eval_with_rtc(
                 observation, rtc_context=rtc_context, noise=noise, rng=rng
             )
-        return self._predict_eval(observation, noise=noise, rng=rng)
+        else:
+            actions, result = self._predict_eval(observation, noise=noise, rng=rng)
+        if self.hierarchical_cfg.enabled:
+            state.action_chunks += 1
+            result.update(planning_info)
+            result["rtc_guidance_applied"] = (
+                rtc_context is not None and self.rtc_enabled
+            )
+        return actions, result
 
     def _predict_eval_with_rtc(
         self,

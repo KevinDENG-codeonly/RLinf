@@ -22,6 +22,7 @@ import re
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .utils import gelu_glu
 
@@ -36,10 +37,49 @@ class LoRAConfig:
     axes: tuple[int, int] = (-2, -1)
     label: str = "L"
 
+    def __post_init__(self):
+        if self.rank <= 0 or not math.isfinite(self.alpha) or self.alpha <= 0:
+            raise ValueError("LoRA requires a positive rank and finite positive alpha.")
+
     @property
     def scaling_value(self) -> float:
         return (
             self.alpha / math.sqrt(self.rank) if self.rslora else self.alpha / self.rank
+        )
+
+
+class Linear(nn.Linear):
+    """Linear adapter retaining the original weight and bias checkpoint keys."""
+
+    @classmethod
+    def from_linear(cls, base: nn.Linear, config: LoRAConfig) -> Linear:
+        """Attach zero-output adapters to an already loaded linear layer."""
+        result = cls(
+            base.in_features,
+            base.out_features,
+            bias=base.bias is not None,
+            device=base.weight.device,
+            dtype=base.weight.dtype,
+        )
+        result.weight = base.weight
+        result.bias = base.bias
+        result.lora_a = nn.Parameter(
+            base.weight.new_empty(config.rank, base.in_features)
+        )
+        result.lora_b = nn.Parameter(
+            base.weight.new_zeros(base.out_features, config.rank)
+        )
+        nn.init.normal_(result.lora_a, std=0.01)
+        result.register_buffer(
+            "lora_scaling", base.weight.new_tensor(config.scaling_value)
+        )
+        return result
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return (
+            F.linear(x, self.weight, self.bias)
+            + F.linear(F.linear(x, self.lora_a.to(x.dtype)), self.lora_b.to(x.dtype))
+            * self.lora_scaling
         )
 
 
@@ -163,16 +203,41 @@ class FeedForward(nn.Module):
         nn.init.normal_(w_linear, std=1.0 / math.sqrt(hidden_dim))
         self.w_linear = nn.Parameter(w_linear)
 
-        # LoRA parameters for gating
-        if lora_config is not None:
-            rank = lora_config.rank
+        self._init_adapters()
+
+    @classmethod
+    def from_base(cls, base: nn.Module, config: LoRAConfig) -> FeedForward:
+        """Reuse loaded FFN parameters without allocating another full FFN."""
+        result = cls.__new__(cls)
+        nn.Module.__init__(result)
+        result.features = base.features
+        result.hidden_dim = base.hidden_dim
+        result.w_gating = base.w_gating
+        result.w_linear = base.w_linear
+        result.lora_config = config
+        result._init_adapters()
+        return result
+
+    def _init_adapters(self) -> None:
+        if self.lora_config is not None:
+            rank = self.lora_config.rank
+            features, hidden_dim = self.features, self.hidden_dim
             # LoRA for w_gating[0] and w_gating[1] separately
-            self.w_gating_lora_a = nn.Parameter(torch.empty(2, features, rank))
-            self.w_gating_lora_b = nn.Parameter(torch.zeros(2, rank, hidden_dim))
-            self.w_linear_lora_a = nn.Parameter(torch.empty(hidden_dim, rank))
-            self.w_linear_lora_b = nn.Parameter(torch.zeros(rank, features))
+            self.w_gating_lora_a = nn.Parameter(
+                self.w_gating.new_empty(2, features, rank)
+            )
+            self.w_gating_lora_b = nn.Parameter(
+                self.w_gating.new_zeros(2, rank, hidden_dim)
+            )
+            self.w_linear_lora_a = nn.Parameter(
+                self.w_linear.new_empty(hidden_dim, rank)
+            )
+            self.w_linear_lora_b = nn.Parameter(self.w_linear.new_zeros(rank, features))
             nn.init.normal_(self.w_gating_lora_a, std=0.01)
             nn.init.normal_(self.w_linear_lora_a, std=0.01)
+            self.register_buffer(
+                "lora_scaling", self.w_linear.new_tensor(self.lora_config.scaling_value)
+            )
         else:
             self.w_gating_lora_a = None
             self.w_gating_lora_b = None
@@ -196,7 +261,7 @@ class FeedForward(nn.Module):
         """Dot product with optional LoRA."""
         base = torch.matmul(x, w.to(x.dtype))
         if self.lora_config is not None:
-            scaling = self.lora_config.scaling_value
+            scaling = self.lora_scaling
             if index == 0:
                 lora = torch.matmul(
                     torch.matmul(x, self.w_gating_lora_a[0].to(x.dtype)),

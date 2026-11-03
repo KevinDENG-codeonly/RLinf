@@ -1614,3 +1614,277 @@ def test_spiritai_training_recipe_enables_state_and_full_parameters():
     assert cfg.runner.logger.logger_backends == ["wandb"]
     assert cfg.actor.fsdp_config.sharding_strategy == "full_shard"
     assert cfg.data.worker_malloc_trim_interval == 64
+
+
+def _small_hierarchical_pi0():
+    from rlinf.models.embodiment.openpi.hierarchical import HierarchicalConfig
+    from rlinf.models.embodiment.openpi.modules.utils import set_torch_compile
+    from rlinf.models.embodiment.openpi.pi0 import Pi0
+    from rlinf.models.embodiment.openpi.pi0_config import Pi0Config
+
+    set_torch_compile(False)
+    config = Pi0Config(
+        dtype="float32",
+        paligemma_variant="dummy",
+        action_expert_variant="dummy",
+        vision_variant="mu/112",
+        pi05=True,
+        action_dim=4,
+        action_horizon=2,
+        max_token_len=8,
+    )
+    policy = Pi0(config, hierarchical_cfg=HierarchicalConfig(enabled=True))
+    # A pretrained expert has active residual gates; zero-init gates would
+    # disconnect every attention/FFN adapter from the action output.
+    with torch.no_grad():
+        for block in policy.llm.layers:
+            for norm in (block.pre_attention_norms[1], block.pre_ffw_norms[1]):
+                norm.ada_modulation.bias[2 * norm.dim :].fill_(1)
+    observation = config.fake_obs(2)
+    observation.tokenized_prompt = torch.tensor(
+        [
+            [2, 3, 4, 5, 6, 1, 0, 0],
+            [2, 7, 8, 9, 1, 0, 0, 0],
+        ]
+    )
+    observation.tokenized_prompt_mask = observation.tokenized_prompt != 0
+    observation.token_ar_mask = torch.tensor(
+        [
+            [0, 0, 0, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 0, 0, 0],
+        ],
+        dtype=torch.bool,
+    )
+    observation.token_loss_mask = observation.token_ar_mask.clone()
+    return policy, config, observation
+
+
+def test_spiritai_subtask_recipe_selects_lora_and_matching_stationary_targets():
+    from hydra import compose, initialize_config_dir
+
+    root = Path(__file__).resolve().parents[2]
+    with initialize_config_dir(
+        version_base="1.1", config_dir=str(root / "examples/sft/config")
+    ):
+        config = compose(config_name="spiritai_sft_openpi_pi05_subtask_lora")
+    assert config.actor.model.is_lora is True
+    assert config.actor.model.lora_target_scope == "openpi_experts"
+    assert config.actor.model.openpi.task == "sft"
+    assert config.actor.model.openpi.hierarchical.enabled is True
+    assert config.actor.model.openpi_data.zero_base_action_targets is True
+    assert config.cluster.component_placement.actor == "0-1"
+
+
+def test_openpi_native_lora_routes_both_losses_and_merges_to_bare_weights(tmp_path):
+    import dataclasses
+    import json
+
+    from rlinf.models.embodiment.openpi.checkpoint import load_full_weights
+    from rlinf.models.embodiment.openpi.lora import (
+        configure_lora,
+        merge_lora_state_dict,
+    )
+    from rlinf.utils.ckpt_convertor.openpi.merge_lora import export_lora_checkpoint
+
+    policy, config, high = _small_hierarchical_pi0()
+    low = dataclasses.replace(high, token_ar_mask=None, token_loss_mask=None)
+    actions = config.fake_act(2)
+    noise, time = torch.zeros_like(actions), torch.tensor([0.4, 0.6])
+    with torch.no_grad():
+        original_flow = policy.compute_loss(low, actions, noise=noise, time=time)
+    configure_lora(policy, vlm_rank=2, expert_rank=3, vlm_alpha=2, expert_alpha=3)
+    assert all(
+        "lora_" in name for name, p in policy.named_parameters() if p.requires_grad
+    )
+    with torch.no_grad():
+        torch.testing.assert_close(
+            policy.compute_loss(low, actions, noise=noise, time=time),
+            original_flow,
+            rtol=1e-5,
+            atol=1e-6,
+        )
+    policy.compute_subtask_loss(high).backward()
+    for block in policy.llm.layers:
+        assert block.mlps[0].w_linear_lora_b.grad is not None
+        assert block.mlps[1].w_linear_lora_b.grad is None
+    policy.zero_grad(set_to_none=True)
+    policy.compute_loss(low, actions, noise=noise, time=time).mean().backward()
+    assert any(
+        p.grad is not None and p.grad.abs().sum() > 0
+        for name, p in policy.named_parameters()
+        if "mlps.0" in name and "lora_" in name
+    )
+    assert any(
+        p.grad is not None and p.grad.abs().sum() > 0
+        for name, p in policy.named_parameters()
+        if "mlps.1" in name and "lora_" in name
+    )
+    optimizer = torch.optim.AdamW(
+        [p for p in policy.parameters() if p.requires_grad], lr=1e-3
+    )
+    optimizer.step()
+    merged = merge_lora_state_dict(policy.state_dict())
+    bare, _, _ = _small_hierarchical_pi0()
+    weights_dir = tmp_path / "actor/model_state_dict"
+    weights_dir.mkdir(parents=True)
+    torch.save(
+        {f"module.{name}": tensor for name, tensor in policy.state_dict().items()},
+        weights_dir / "full_weights.pt",
+    )
+    with pytest.raises(ValueError, match="unmerged LoRA"):
+        load_full_weights(bare, weights_dir / "full_weights.pt", expect_rlt=False)
+    (tmp_path / "actor/openpi_training.json").write_text(
+        json.dumps(
+            {
+                "text_template_version": 1,
+                "normalization": {"norm_stats": {}},
+            }
+        )
+    )
+    exported = export_lora_checkpoint(tmp_path, tmp_path / "deploy")
+    deployed = torch.load(exported, weights_only=True)
+    assert set(deployed) == set(merged)
+    for key in merged:
+        torch.testing.assert_close(deployed[key], merged[key])
+    bare.load_state_dict(merged, strict=True)
+    with torch.no_grad():
+        torch.testing.assert_close(
+            bare.compute_subtask_loss(high), policy.compute_subtask_loss(high)
+        )
+        torch.testing.assert_close(
+            bare.compute_loss(low, actions, noise=noise, time=time),
+            policy.compute_loss(low, actions, noise=noise, time=time),
+            rtol=1e-4,
+            atol=1e-6,
+        )
+
+
+def test_openpi_subtask_ce_is_causal_and_supervises_only_shifted_targets():
+    import dataclasses
+
+    import torch.nn.functional as functional
+
+    policy, _, observation = _small_hierarchical_pi0()
+    prefix, _, _ = policy.build_prefix_cache(observation)
+    changed = observation.tokenized_prompt.clone()
+    changed[0, 4] = 11
+    altered, _, _ = policy.build_prefix_cache(
+        dataclasses.replace(observation, tokenized_prompt=changed)
+    )
+    text_start = prefix.shape[1] - changed.shape[1]
+    torch.testing.assert_close(
+        prefix[0, : text_start + 4], altered[0, : text_start + 4], rtol=0, atol=0
+    )
+    expected = []
+    for row in range(2):
+        positions = observation.token_loss_mask[row].nonzero().flatten()
+        logits = policy.llm.embedder(
+            prefix[row, text_start + positions - 1], decode=True
+        )
+        expected.append(
+            functional.cross_entropy(
+                logits.float(), observation.tokenized_prompt[row, positions]
+            )
+        )
+    torch.testing.assert_close(
+        policy.compute_subtask_loss(observation), torch.stack(expected).mean()
+    )
+
+
+def test_openpi_subtask_ce_enters_output_module_once_for_multiple_chunks():
+    import dataclasses
+
+    policy, _, observation = _small_hierarchical_pi0()
+    policy.hierarchical_cfg = dataclasses.replace(
+        policy.hierarchical_cfg, ce_chunk_size=1
+    )
+    calls = []
+
+    def capture(module, args, kwargs):
+        if kwargs.get("decode", False):
+            calls.append(args[0].shape[0])
+
+    hook = policy.llm.embedder.register_forward_pre_hook(capture, with_kwargs=True)
+    try:
+        loss = policy.compute_subtask_loss(observation)
+        loss.backward()
+    finally:
+        hook.remove()
+    assert torch.isfinite(loss)
+    assert calls == [int(observation.token_loss_mask.sum())]
+
+
+@pytest.mark.parametrize("tokens", [1, 32, 33, 69, 98])
+def test_openpi_chunked_token_ce_matches_full_projection_and_gradients(tokens):
+    from rlinf.models.embodiment.openpi.modules.gemma import Embedder
+
+    embedder = Embedder(vocab_size=257, embed_dim=16).requires_grad_(False)
+    hidden = torch.randn(tokens, 16, requires_grad=True)
+    targets = torch.randint(257, (tokens,))
+    expected = torch.nn.functional.cross_entropy(
+        embedder(hidden, decode=True).float(), targets, reduction="none"
+    )
+    expected_gradient = torch.autograd.grad(expected.sum(), hidden)[0]
+    actual = embedder(hidden, decode=True, targets=targets, chunk_size=32)
+    actual_gradient = torch.autograd.grad(actual.sum(), hidden)[0]
+    torch.testing.assert_close(actual, expected)
+    torch.testing.assert_close(actual_gradient, expected_gradient)
+
+
+def test_openpi_subtask_kv_decode_matches_full_causal_decode_with_padding_holes():
+    import dataclasses
+
+    policy, _, observation = _small_hierarchical_pi0()
+    observation = dataclasses.replace(
+        observation, token_ar_mask=None, token_loss_mask=None
+    )
+    observation.image_masks["base_0_rgb"][0] = False
+    generated, finished = policy.sample_subtask_tokens(
+        observation, eos_token_id=999999, max_new_tokens=3
+    )
+    assert not finished.any()
+    current = observation
+    for step in range(3):
+        hidden, valid, _ = policy.build_prefix_cache(current)
+        absolute = (
+            torch.arange(valid.shape[1])
+            .expand_as(valid)
+            .masked_fill(~valid, -1)
+            .amax(-1)
+        )
+        expected = policy.llm.embedder(
+            hidden[torch.arange(2), absolute], decode=True
+        ).argmax(-1)
+        torch.testing.assert_close(generated[:, step], expected)
+        previous_mask = current.token_ar_mask
+        if previous_mask is None:
+            previous_mask = torch.zeros_like(current.tokenized_prompt_mask)
+        current = dataclasses.replace(
+            current,
+            tokenized_prompt=torch.cat(
+                [current.tokenized_prompt, expected[:, None]], dim=1
+            ),
+            tokenized_prompt_mask=torch.cat(
+                [current.tokenized_prompt_mask, torch.ones(2, 1, dtype=torch.bool)],
+                dim=1,
+            ),
+            token_ar_mask=torch.cat(
+                [previous_mask, torch.ones(2, 1, dtype=torch.bool)], dim=1
+            ),
+        )
+
+
+def test_openpi_subtask_planning_state_requires_reset_for_identical_next_episode():
+    from rlinf.models.embodiment.openpi.hierarchical import SubtaskPlanningState
+
+    state = SubtaskPlanningState()
+    assert state.should_plan(["fold box"], 2)
+    state.update(["fold box"], ["press flap"])
+    state.action_chunks = 1
+    assert not state.should_plan(["fold box"], 2)
+    state.action_chunks = 2
+    assert state.should_plan(["fold box"], 2)
+    state.action_chunks = 1
+    assert state.should_plan(["fold another box"], 2)
+    state.reset()
+    assert state.should_plan(["fold box"], 2)

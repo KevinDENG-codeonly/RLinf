@@ -42,6 +42,10 @@ OpenPI 监督微调
      - ``robotwin_adjust_bottle_sft_openpi.yaml``
      - ``model/pi0``
      - ``robotwin_adjust_bottle_sft_openpi``
+   * - SpiritAI FoldBox 显式 subtask
+     - ``spiritai_sft_openpi_pi05_subtask_lora.yaml``
+     - ``model/pi0_5``
+     - ``spiritai_sft_openpi_pi05_subtask_lora``
 
 双 Franka 真机的 SFT 与部署见 :doc:`dual_franka_openpi_pytorch`。
 
@@ -439,8 +443,81 @@ Cartesian 布局共 25 维：左臂位姿（6）、psi（1）、夹爪（1），
 
 使用已有 SpiritAI container 部署训练结果，步骤见 :doc:`真机评测 <../../evaluations/guides/realworld>`。RLinf RTC 在推理时引导采样，本 recipe 训练普通 flow-matching 目标，不使用干净动作前缀训练或仅对后缀计算 loss。
 
+训练显式子任务模型
+----------------------------------------
+
+对于 SpiritAI 折盒任务，使用 ``spiritai_sft_openpi_pi05_subtask_lora`` 在已有 Pi0.5 base 上微调两种监督视图。该 downstream recipe 采用 `Pi0.5 原论文 <https://arxiv.org/abs/2504.16054>`_ 的显式高低层分解，训练目标为 subtask 文本 CE 和连续动作 flow matching。
+
+.. list-table:: 加载时构造的训练视图
+   :header-rows: 1
+
+   * - 分支
+     - 输入
+     - 目标
+   * - 高层
+     - 当前图像、归一化 state、overall instruction
+     - 当前 subtask 文本及 EOS
+   * - 低层
+     - 当前图像、归一化 state、当前 subtask
+     - 50 步动作窗口，补齐到 32 维
+
+数据保留 LeRobot v2.1 布局。``task_index`` 通过 ``meta/tasks.jsonl`` 指向 overall instruction；每个 parquet 行另有非空 ``subtask`` 字符串，并在 ``meta/info.json.features`` 中声明。loader 保持逐帧对齐，在线构造两种视图。低层文本只使用 subtask；高层 response 使用因果 attention，仅对 subtask token 和 EOS 计算 CE。高层序列超长时直接报错，避免截断监督标签。
+
+原生 LoRA 覆盖两个 Gemma expert 的 attention 和 FFN。VLM 的 rank/alpha 为 16/16，Action Expert 为 32/32，对应 `OpenPI Gemma <https://github.com/Physical-Intelligence/openpi/blob/main/src/openpi/models/gemma.py>`_ 为两个 expert 设置的默认值。RLinf 的 :doc:`LoRA 指南 <../../guides/lora>` 给出通用 rank 32 示例，没有规定 Pi0.5 双专家联合 SFT 的专用配置。视觉编码器、共享的 token embedding/output 权重、动作与时间投影、norm 和其余 base 参数保持冻结。FM 梯度通过 Action Expert 的 attention 传到 VLM adapter。tokenizer 复用 PaliGemma 词表，高层前缀以 ``Subtask:`` 结束。
+
+``ce_chunk_size`` 限制每次投影的 response token 数。投影和 CE 分块在 embedding/output 模块的一次 forward 内执行，使标签长度不同的 rank 以相同次数进入该 FSDP wrapper。扩展 loss 时须保留这一边界，不能让 rank 内的分块次数决定分片模块的调用次数。
+
+不同长度触发的故障、修复及验证边界见 :ref:`openpi-subtask-collective-order`。
+
+该固定底盘 FoldBox recipe 设置 ``zero_base_action_targets=true``，与已有全参数 FoldBox 运行及其归一化文件保持一致。
+
+.. warning::
+
+   预处理须与归一化统计对应。底盘动作 quantile 范围为零时，非零原始底盘指令会被放大。对于底盘动作统计均为零的情况，分层 loader 要求使用对应的 ``zero_base_action_targets=true`` 变换。
+
+动作窗口沿用已有 sampler，可以跨越 subtask 边界，整个窗口以当前帧的标签为条件。
+
+执行配置采用 FSDP1 ``full_shard``，设置 ``backward_prefetch=pre`` 和 ``gradient_checkpointing=false``。``openpi.torch_compile=true`` 编译现有 GELU-GLU kernel，不是编译整个模型。比较运行结果时，保留 recipe 的 FP32 参数更新、BF16 主干计算和 FP32 梯度归约策略。
+
+先用当前任务的归一化统计完成 100 次更新的双卡检查。使用现有 venv 的 Python；两个 runner 覆盖项将检查限制为 100 次更新，并禁用全部 checkpoint 保存，包括最后一步：
+
+.. code-block:: bash
+
+   export JAX_PLATFORMS=cpu
+   export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+   .venv/bin/python examples/sft/train_vla_sft.py \
+     --config-name spiritai_sft_openpi_pi05_subtask_lora \
+     data.train_data_paths=/path/to/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks \
+     actor.model.model_path=/path/to/pi05_base_rlinf_pytorch \
+     actor.model.openpi_data.norm_stats_path=/path/to/foldbox_assets/norm_stats.json \
+     runner.max_steps=100 runner.save_interval=-1 \
+     runner.logger.log_path=./logs/spiritai_subtask_check \
+     runner.logger.experiment_name=spiritai_pi05_subtask_ce_flow_lora_100
+
+该命令使用两个 FSDP rank，每卡 micro batch 8，全局 batch 64，累积 4 轮梯度。每次 optimizer update 包含 32 条高层记录和 32 个低层动作窗口，两个 rank 按相同顺序交替执行分支。每种 loss 在各自样本上取平均，总目标为 ``text_loss_weight * CE + flow_loss_weight * FM``。初始权重为 1 和 10，只作为起始超参数，不代表已经验证折盒性能提升。观察 ``subtask_ce``、``flow_loss``、``hl_records_per_update``、``ll_action_chunks_per_update``、``hl_tokens_per_update`` 和 ``peak_allocated_gib``；与 flow-only 训练比较时，同时记录动作窗口曝光量和 optimizer steps。
+
+``time/training`` 测量完整 optimizer update，包含全部 4 轮累积、数据等待、计算和训练通信，不是单个 microbatch 耗时。此前全参数 64/8 配置每次更新累积 4 轮、训练 64 个动作窗口；当前为 2 轮 HL、2 轮 LL，共 32 个动作窗口。文本分支新增 257152 类词表投影和 CE。冻结的底座权重仍参与计算和 FSDP 参数收集；FSDP1 wrapper 混合冻结权重与 adapter 时，还可能为整个 flat parameter 分配和归约梯度。:ref:`openpi-joint-update-timing` 记录的是此前 32/2 运行的耗时及其边界，不能作为 64/8 的性能验证。
+
+检查期间保留 45000 次更新的 scheduler 计划和 750 次更新的 warmup，因此 100 次更新全部处于 warmup。通过检查只能验证训练链路和指标有限，不能证明收敛或 warmup 后的稳定性。正式训练时移除 ``runner.max_steps=100`` 和 ``runner.save_interval=-1``，并使用新的日志目录和实验名。recipe 随后运行 45000 次更新，每 5000 次保存。AdamW 的学习率和最小学习率都为 ``1e-5``，所以 ``openpi_cosine`` 在 warmup 后保持恒定学习率。
+
+保持 ``stateful_loader=true``，梯度累积轮数须为不小于 2 的偶数。添加 ``+runner.resume_dir=/path/to/checkpoints/global_step_5000``，恢复 optimizer、scheduler、loader 分支位置和 RNG 状态。恢复时，数据内容、预处理、归一化、rank 布局、micro batch、worker 数、seed 和分层训练设置须保持一致。
+
+训练完成后，先合并原生 adapter，再部署：
+
+.. code-block:: bash
+
+   python -m rlinf.utils.ckpt_convertor.openpi.merge_lora \
+     --ckpt /path/to/checkpoints/global_step_5000 \
+     --output /path/to/merged_pi05_subtask_lora
+
+导出目录包含裸 ``full_weights.pt``、``norm_stats.json`` 和记录训练设置及文本模板版本的 ``openpi_training.json``。评估使用 ``realworld_spiritai_eval_pi05_subtask_RTC``，将模型和归一化路径指向该目录，保持训练时的 token 上限和 state 编码约定，设置 ``openpi.task=eval``。将未合并的 adapter 权重当作裸 policy 加载时会报错。
+
+推理先生成 subtask，再以当前 observation 和该文本重建低层上下文，高层 KV cache 与动作 cache 独立。直接调用 policy 时每次重新规划；保留 ``SubtaskPlanningState`` 的调用方须在 episode 边界清空它。RTC worker 持有该状态，收到 ``bootstrap`` 时清空，``planning_interval=3`` 表示每 3 次动作请求刷新高层。subtask 变化时丢弃上一动作 chunk 的 guidance。日志记录生成文本和规划耗时；空 subtask 会阻止动作生成。训练与推理链路验证后，再独立评估真机成功率及跨盒型号泛化。
+
 评测
 ----------------------------------------
+
+以下直接加载流程适用于 flow-only checkpoint；显式 subtask LoRA 使用上文的合并导出流程。
 
 SFT 会把 ``full_weights.pt`` 写到 ``.../checkpoints/global_step_<N>/actor/model_state_dict/``。``openpi`` 评测可以直接加载这个 ``.pt``\ （或 ``global_step_<N>`` 目录）：加载时会剥掉 FSDP / wrapper 前缀，模型形状来自评测 YAML，不必先转成 ``model.safetensors``。
 

@@ -1,7 +1,7 @@
 调优 PCIe 多卡 OpenPI SFT
 ===========================
 
-当多卡 OpenPI 全参数 SFT 受到 PCIe 通信和内存容量限制时，按本指南测量和调优。从 :doc:`OpenPI SFT 配方 <../examples/embodied/sft_openpi>` 出发，先核对实际传输路径，再增大每卡 micro batch，最后验证 checkpoint 恢复，确定长训练预算。
+按本指南诊断 OpenPI 全参数与显式 subtask LoRA SFT 的通信和内存限制。从 :doc:`OpenPI SFT 配方 <../examples/embodied/sft_openpi>` 出发，先确认更新与样本计数，检查 collective 顺序和实际传输路径，再测量 microbatch 调整与 checkpoint 恢复，确定长训练预算。
 
 以下实测来自 2026-10-27 的 SpiritAI FoldBox 实验：两张 RTX PRO 5000 Blackwell，每卡报告 48,935 MiB，主机约 125 GiB RAM，模型共 3,353,433,872 个参数。数据为三路相机和 25D Cartesian 布局，动作 pad 至网络 32D，horizon 为 50，prompt/state token 上限为 256。这些数值描述一台机器的容量和吞吐；收敛与真机任务成功率需要另行验证。
 
@@ -23,6 +23,21 @@
 对照性能时，保持模型、观测、horizon、归一化、seed、优化器和精度策略一致。本次采用 FP32 参数存储与更新、BF16 主干计算、FP32 归约、已有 OpenPI FP32 模块策略、梯度检查点，以及 FSDP1 ``full_shard``。局部算子编译关闭，以便聚焦 PCIe。框架支持 FSDP2，但当前版本的 OpenPI 分片路径校验要求 FSDP1，不能将切换后端当作即插即用的调优步骤。有限测试使用恒定学习率 ``1e-5`` 和 warmup 0 以观察更新；正式计划为 warmup 750，吞吐检查并不验证该优化 schedule。
 
 通用 SpiritAI YAML 保留 global batch 32、micro batch 1 的保守默认值。记录包含 CLI 覆盖的最终解析配置；仅选择这个 YAML 名称，并不会得到调优后的 64/8 配置。
+
+.. _openpi-subtask-collective-order:
+
+先核对通信顺序，再调带宽
+--------------------------
+
+训练进度停止时，先排查执行正确性，再调通信带宽。2026-11-02，显式 subtask LoRA 完成 13 次更新后停止推进。两卡利用率均为 100%，功耗约 86 W、上限为 300 W，采样到的显存读写接近零。利用率表示有 kernel 在执行的时间比例，不代表有效算术吞吐；通信等待也可能显示为忙碌。
+
+第 14 次更新首次出现 CE 分块数不同：一个 rank 监督 98 个 token，另一个监督 69 个。``ce_chunk_size=32`` 时，原实现分别进入 FSDP 包装的输出模块 4 次和 3 次，可能产生错位的 collective 序列。CPU/Gloo 负面对照复现了明确的 collective mismatch。更快的互联、更大的 GPU 或更长的 timeout 都不能修正调用顺序；更大集群的每个分片组同样需要遵守此契约。
+
+输出模块现在在一次 forward 中接收本地全部监督 hidden state 和 target，并在 FSDP 参数视图可用期间内部完成投影与 CE 分块。各 rank 都只进入一次 wrapper，本地分块数仍可不同。修复保留了 next-token 对齐的 response/EOS 标签、按样本归一化、LoRA 范围和 loss 权重。修改训练目标时保留这一边界；仅让高低层分支顺序一致还不够，rank 内的循环也不能改变分片模块调用次数。
+
+回归检查覆盖真实小型 Pi0 loss、完整与分块投影的 loss/输入梯度等价性，以及 2-rank、4-rank 真实 CPU FSDP，包含 98/69、1/32/33/65 等不同长度。模型与 FSDP 测试共 166 项通过，两项依赖/GPU 用例跳过。人工重启的 GPU 运行在归档快照中已完成 147 次更新，越过原触发点；这不代表计划中的 5000 步已完成或任务质量通过。触发条件与验证范围见 :download:`通信修复记录 <../../../experiments/pi05-explicit-subtask-ce-lora/artifacts/collective_fix_validation.json>`。
+
+诊断启动时可设置 ``TORCH_DISTRIBUTED_DEBUG=DETAIL``，让不匹配的 collective 显式报错，并检查是否某个 rank 先退出、进入其他分支或多调用了一次模块。错误解释须符合 `NCCL collective 契约 <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/collectives.html>`_。短测若未抽到不同 response 长度，就没有覆盖这一条件。实验训练的启动和停止由人工执行；已运行的 worker 须重新启动才能加载修复。
 
 确认实际通信路径
 ------------------
@@ -103,6 +118,50 @@ PHB 允许同 NUMA 节点内经过主桥的 peer 通信，并不会建立 NVLink
 本机其他已有开关没有改善最终取舍：backward prefetch 仍接近 28 秒；``shard_grad_op`` 的 micro batch 1 为 15.180 秒、峰值 48,327 MiB。固定 NCCL 为 16 CTA 可把 256 MiB all-gather 短测提高到约 29.7 GB/s，但实际 micro batch 8 训练仅从 6.526 变为 6.501 秒，峰值却多了 1,163 MiB，因此保留默认 CTA 自动选择。
 
 相同 micro batch 下，传输、预取和分片对照的 loss 与梯度范数记录一致。改变 micro batch 会改变随机噪声、时间和增广的抽样分组，因此不同 micro batch 的 loss 序列不要求逐步相同。短测中的有限 loss 也不能证明收敛。若需区分 kernel、通信和数据等待的占比，使用 :doc:`Profiling <profile>`；本轮采用传输日志和受控运行，没有采集 GPU timeline。
+
+.. _openpi-joint-update-timing:
+
+比较联合 LoRA 与 flow-only 的更新耗时
+----------------------------------------
+
+判断 LoRA 是否变慢前，先确认秒数的计量单位。本地 W&B history 快照对照了 2026-10-28 已完成的全参数运行和 2026-11-02 重启的联合 LoRA 运行，均取 optimizer update 11–80，共 70 条计时，该窗口没有 checkpoint 写入。
+
+所记录的联合训练使用 global batch 32、micro batch 2。当前 recipe 改为 64/8，每次更新累积 4 轮，包含 32 条 HL 和 32 条 LL 记录。比较耗时时须区分这两套配置。
+
+.. list-table:: 同一双卡工作站上的描述性对照
+   :header-rows: 1
+
+   * - 指标
+     - Flow-only 全参数
+     - Subtask CE + flow LoRA
+   * - Global batch / 每卡 micro batch
+     - 64 / 8
+     - 32 / 2
+   * - 每卡梯度累积轮数
+     - 4 轮 LL
+     - 4 轮 HL + 4 轮 LL
+   * - 每次更新的 HL 记录 / 动作窗口
+     - 0 / 64
+     - 16 / 16
+   * - 平均秒数 / optimizer update
+     - 6.586
+     - 5.745
+   * - 平均耗时除以累积轮数
+     - 1.647
+     - 0.718
+   * - 动作窗口 / 秒
+     - 9.717
+     - 2.785
+
+除以累积轮数只是把更新耗时算术分摊，不是单个 microbatch 或单卡延迟的独立测量。若 1.6 秒指原先的 ``6.586/4``，将它与完整联合更新比较就混用了单位。若来自另一条单卡或 JAX 运行，则需要那条运行的配置和计时口径。所记录的联合训练窗口每次更新更短，但动作窗口更少，还同时学习文本；这不是 LoRA 单独效果或任务质量的受控对照。
+
+代码能够确认的工作量差异包括：
+
+* 每个 rank 从 4 轮 microbatch 变成 8 轮。更小的批量让 kernel 启动和 FSDP 参数收集成本由更少样本分摊。
+* 其中 4 轮使用 VLM、hidden width 2048 到 257152 类词表的投影，以及 token CE。teacher forcing 在一次 VLM 前向中预测全部 response 位置，训练没有逐 token 自由生成；HL/LL 交替使用不同记录，没有对每条记录同时执行两种 loss。
+* 冻结底座仍参与稠密计算，并在需要时传播 activation gradient 到 adapter。``full_shard`` 仍为活跃模块收集权重。optimizer 仅更新 adapter，但 FSDP1 wrapper 混合冻结权重与 adapter 时，仍可能为整个 flat parameter 分配和归约梯度。可训练参数数量不能直接代表梯度通信量或运行时间的节省。
+
+两次运行均启用 activation checkpointing、关闭 ``torch_compile``，它们是共同成本，不能当作本次新增原因。``no_sync`` 延后梯度同步，但不取消参数收集。``time/training`` 还包含等待 batch 的时间，``time/step`` 在保存时包含 checkpoint 开销。本次没有采集分阶段 profiler，因此不能给 CE、重计算、通信或加载分配实测秒数或百分比；下一步测量见 :doc:`Profiling <profile>`。源 run ID、计数及全部所选 timing row 见 :download:`计时对照 <../../../experiments/pi05-explicit-subtask-ce-lora/artifacts/timing_comparison.json>`。
 
 验证恢复与内存回收
 --------------------

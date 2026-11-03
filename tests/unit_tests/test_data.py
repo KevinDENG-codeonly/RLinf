@@ -3628,6 +3628,144 @@ class _OpenPIRandomDataset(torch.utils.data.Dataset):
         }
 
 
+class _OpenPIHierarchicalDataset(_OpenPIRandomDataset):
+    def __getitem__(self, index):
+        result = super().__getitem__(index)
+        for name in (
+            "tokenized_prompt",
+            "tokenized_prompt_mask",
+            "token_ar_mask",
+            "token_loss_mask",
+        ):
+            result[f"high_level_{name}"] = np.ones(
+                8, dtype=np.int64 if name == "tokenized_prompt" else bool
+            )
+        return result
+
+
+def test_openpi_subtask_tokenizer_separates_prefix_targets_and_eos(tmp_path):
+    import io
+
+    sentencepiece = pytest.importorskip("sentencepiece")
+    from rlinf.models.embodiment.openpi.hierarchical import (
+        SubtaskTokenizer,
+        TokenizeHighLevel,
+    )
+
+    model_bytes = io.BytesIO()
+    sentencepiece.SentencePieceTrainer.train(
+        sentence_iterator=iter(
+            ["Task: fold a box, State: 127 128; Subtask: press the flap"] * 20
+        ),
+        model_writer=model_bytes,
+        vocab_size=64,
+        model_type="bpe",
+        hard_vocab_limit=False,
+        bos_id=1,
+        eos_id=2,
+        pad_id=0,
+        unk_id=3,
+        minloglevel=2,
+    )
+    processor = sentencepiece.SentencePieceProcessor(model_proto=model_bytes.getvalue())
+    tokenizer = SubtaskTokenizer(256, processor=processor)
+    encoded = tokenizer.encode("fold a box", "press the flap", np.zeros(4))
+    valid = encoded["tokenized_prompt_mask"]
+    response = encoded["token_loss_mask"]
+    assert response.any() and np.all(response <= valid)
+    assert encoded["tokenized_prompt"][response][-1] == processor.eos_id()
+    assert (
+        processor.decode(encoded["tokenized_prompt"][response].tolist())
+        == "press the flap"
+    )
+    assert "press the flap" not in processor.decode(
+        encoded["tokenized_prompt"][valid & ~response].tolist()
+    )
+    inference = tokenizer.encode("fold a box", state=np.zeros(4))
+    np.testing.assert_array_equal(
+        inference["tokenized_prompt"][inference["tokenized_prompt_mask"]],
+        encoded["tokenized_prompt"][valid & ~response],
+    )
+    result = TokenizeHighLevel(tokenizer, True)(
+        {
+            "state": np.zeros(4),
+            "prompt": "press the flap",
+            "overall_instruction": "fold a box",
+            "subtask": "press the flap",
+        }
+    )
+    assert result["prompt"] == "press the flap"
+    assert "subtask" not in result and "overall_instruction" not in result
+    with pytest.raises(ValueError, match="never truncated"):
+        SubtaskTokenizer(4, processor=processor).encode("fold a box", "press the flap")
+
+
+def test_openpi_hierarchical_normalization_rejects_zero_base_stats_without_transform():
+    pytest.importorskip("openpi")
+    from openpi.shared.normalize import NormStats
+    from openpi.training.config import DataConfig
+
+    from rlinf.data.datasets.openpi.official_sft_data_loader import (
+        _validate_hierarchical_normalization,
+    )
+
+    stats = NormStats(
+        mean=np.zeros(25), std=np.ones(25), q01=np.zeros(25), q99=np.zeros(25)
+    )
+    config = DataConfig(norm_stats={"actions": stats})
+    with pytest.raises(ValueError, match="zero_base_action_targets=true"):
+        _validate_hierarchical_normalization(config, False)
+    _validate_hierarchical_normalization(config, True)
+    stats.q99[-3:] = 1
+    _validate_hierarchical_normalization(config, False)
+
+
+@pytest.mark.parametrize("num_workers", [0, 2])
+def test_openpi_hierarchical_loader_restores_objective_and_frame_together(num_workers):
+    pytest.importorskip("openpi")
+    from openpi.training.data_loader import _collate_fn
+
+    from rlinf.data.datasets.openpi.official_sft_data_loader import (
+        StatefulOpenPIDataLoader,
+    )
+
+    def loader(rank):
+        dataset = _OpenPIHierarchicalDataset()
+        return StatefulOpenPIDataLoader(
+            dataset,
+            None,
+            {"hierarchical": {"enabled": True}},
+            batch_size=2,
+            sampler=torch.utils.data.DistributedSampler(
+                dataset, num_replicas=2, rank=rank, shuffle=False
+            ),
+            num_workers=num_workers,
+            collate_fn=_collate_fn,
+            generator=torch.Generator().manual_seed(42),
+            multiprocessing_context="spawn" if num_workers else None,
+            snapshot_every_n_steps=1,
+        )
+
+    first, other = loader(0), loader(1)
+    left, right = iter(first), iter(other)
+    assert next(left)["objective"] == next(right)["objective"] == "subtask"
+    state = copy.deepcopy(first.state_dict())
+    expected = next(left)
+    assert expected["objective"] == next(right)["objective"] == "flow"
+    restored = loader(0)
+    restored.load_state_dict(state)
+    resumed = iter(restored)
+    actual = next(resumed)
+    assert actual["objective"] == "flow"
+    torch.testing.assert_close(actual["actions"], expected["actions"], rtol=0, atol=0)
+    torch.testing.assert_close(
+        actual["high_level_token_loss_mask"], expected["high_level_token_loss_mask"]
+    )
+    list(left)
+    list(right)
+    list(resumed)
+
+
 @pytest.mark.parametrize("num_workers", [0, 2])
 @pytest.mark.parametrize("trim_interval", [0, 2])
 def test_openpi_stateful_loader_resumes_consumed_batches(num_workers, trim_interval):

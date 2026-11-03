@@ -21,6 +21,7 @@ subclasses (eval / RL / DAgger / DSRL) inherit this module.
 
 from __future__ import annotations
 
+import dataclasses
 from types import SimpleNamespace
 from typing import Any, Sequence
 
@@ -30,6 +31,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from rlinf.models.embodiment.base_policy import ForwardType
+from rlinf.models.embodiment.openpi.hierarchical import HierarchicalConfig
 from rlinf.models.embodiment.openpi.modules import gemma, model, pointnet, siglip
 from rlinf.models.embodiment.openpi.modules.utils import _str_to_dtype
 from rlinf.models.embodiment.openpi.pi0_config import Pi0Config
@@ -44,7 +46,7 @@ def make_attn_mask(input_mask: torch.Tensor, mask_ar: torch.Tensor) -> torch.Ten
 
     Args:
         input_mask: bool[B, N] - true if token is valid
-        mask_ar: bool[N] - true where next token starts a new autoregressive block
+        mask_ar: bool[N] or bool[B, N], marking new autoregressive blocks
     """
     mask_ar = mask_ar.expand(input_mask.shape[0], -1)
     cumsum = torch.cumsum(mask_ar.int(), dim=1)
@@ -97,12 +99,18 @@ class Pi0(model.BaseModel):
         config_name: str = "",
         state_indices: Sequence[int] | None = None,
         rlt_cfg: OpenPiPytorchRLTConfig | None = None,
+        hierarchical_cfg: HierarchicalConfig | None = None,
     ):
         super().__init__(config.action_dim, config.action_horizon, config.max_token_len)
         self.pi05 = config.pi05
         self.pcd = config.pcd
         self.embed_dtype = _str_to_dtype(config.dtype)
         self._config = config
+        self.hierarchical_cfg = hierarchical_cfg or HierarchicalConfig()
+        if self.hierarchical_cfg.enabled and (not config.pi05 or config.pcd):
+            raise ValueError(
+                "Explicit subtask prediction requires Pi0.5 without point clouds."
+            )
 
         paligemma_config = gemma.get_config(config.paligemma_variant)
         action_expert_config = gemma.get_config(config.action_expert_variant)
@@ -119,7 +127,7 @@ class Pi0(model.BaseModel):
 
         # SigLIP vision encoder
         self.img = siglip.SigLIPViT(
-            variant="So400m/14",
+            variant=config.vision_variant,
             pool_type="none",
             num_classes=paligemma_config.width,
             use_gradient_checkpointing=False,
@@ -248,7 +256,102 @@ class Pi0(model.BaseModel):
         tokens = torch.cat(tokens, dim=1)
         input_mask = torch.cat(input_mask, dim=1)
         ar_mask = torch.tensor(ar_mask, device=tokens.device)
+        if self.hierarchical_cfg.enabled and obs.token_ar_mask is not None:
+            if obs.token_ar_mask.shape != obs.tokenized_prompt.shape:
+                raise ValueError("token_ar_mask must match tokenized_prompt shape.")
+            ar_mask = ar_mask.expand(tokens.shape[0], -1).clone()
+            language_end = tokens.shape[1]
+            if self.pcd and obs.pcd_xyz is not None:
+                language_end -= pcd_tokens.shape[1]
+            ar_mask[:, language_end - obs.tokenized_prompt.shape[1] : language_end] = (
+                obs.token_ar_mask
+            )
         return tokens, input_mask, ar_mask
+
+    def compute_subtask_loss(
+        self, observation: model.Observation, *, train: bool = False
+    ) -> torch.Tensor:
+        """Mean per-example next-token CE on subtask tokens and EOS only."""
+        if not self.hierarchical_cfg.enabled:
+            raise ValueError("Subtask CE requires hierarchical.enabled=true.")
+        if observation.token_loss_mask is None or observation.token_ar_mask is None:
+            raise ValueError("Subtask CE requires token_loss_mask and token_ar_mask.")
+        observation = model.preprocess_observation(observation, train=train)
+        observation = model._observation_to_dtype(observation, self.embed_dtype)
+        prefix, valid, causal = self.embed_prefix(observation)
+        outputs, _ = self.llm(
+            [prefix, None],
+            positions=torch.cumsum(valid.int(), dim=1) - 1,
+            mask=make_attn_mask(valid, causal),
+        )
+        ids = observation.tokenized_prompt
+        target_mask = (
+            observation.token_loss_mask[:, 1:]
+            & observation.tokenized_prompt_mask[:, 1:]
+            & observation.tokenized_prompt_mask[:, :-1]
+        )
+        per_example_counts = target_mask.sum(-1)
+        if torch.any(per_example_counts == 0):
+            raise ValueError(
+                "Every high-level sample must supervise at least one response token."
+            )
+        hidden = outputs[0][:, -ids.shape[1] : -1][target_mask]
+        targets = ids[:, 1:][target_mask]
+        rows = target_mask.nonzero(as_tuple=True)[0]
+        totals = hidden.new_zeros(ids.shape[0], dtype=torch.float32)
+        losses = self.llm.embedder(
+            hidden,
+            decode=True,
+            targets=targets,
+            chunk_size=self.hierarchical_cfg.ce_chunk_size,
+        )
+        totals = totals.scatter_add(0, rows, losses)
+        return (totals / per_example_counts).mean()
+
+    @torch.no_grad()
+    def sample_subtask_tokens(
+        self,
+        observation: model.Observation,
+        *,
+        eos_token_id: int,
+        max_new_tokens: int | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Greedy causal decoding using a VLM-only KV cache, separate from actions."""
+        if not self.hierarchical_cfg.enabled:
+            raise ValueError("Subtask generation requires hierarchical.enabled=true.")
+        if max_new_tokens is not None and max_new_tokens <= 0:
+            raise ValueError("Expected max_new_tokens > 0.")
+        observation = model.preprocess_observation(observation, train=False)
+        observation = model._observation_to_dtype(observation, self.embed_dtype)
+        output, valid, cache = self.build_prefix_cache(observation)
+        indices = torch.arange(valid.shape[1], device=valid.device)
+        last_valid = indices.expand_as(valid).masked_fill(~valid, -1).amax(-1)
+        if torch.any(last_valid < 0):
+            raise ValueError("Subtask generation requires a nonempty valid prefix.")
+        hidden = output[torch.arange(valid.shape[0], device=valid.device), last_valid]
+        limit = max_new_tokens or self.hierarchical_cfg.max_subtask_tokens
+        generated = torch.zeros(
+            valid.shape[0], limit, dtype=torch.long, device=valid.device
+        )
+        finished = torch.zeros(valid.shape[0], dtype=torch.bool, device=valid.device)
+        for step in range(limit):
+            token = self.llm.embedder(hidden, decode=True).argmax(-1)
+            token = torch.where(finished, 0, token)
+            generated[:, step] = token
+            active = ~finished
+            finished = finished | (token == eos_token_id)
+            if torch.all(finished) or step + 1 == limit:
+                break
+            positions = valid.sum(-1, keepdim=True)
+            valid = torch.cat([valid, active[:, None]], dim=1)
+            outputs, cache = self.llm(
+                [self.llm.embed(token[:, None]), None],
+                positions=positions,
+                mask=active[:, None, None] & valid[:, None, :],
+                kv_cache=cache,
+            )
+            hidden = outputs[0][:, 0]
+        return generated[:, : step + 1], finished
 
     def embed_suffix(
         self,
@@ -828,6 +931,8 @@ class Pi0(model.BaseModel):
     ) -> torch.Tensor | dict[str, torch.Tensor]:
         """Flow-matching SFT loss. Shared by SFT, DAgger, and PPO co-train."""
         del kwargs
+        if self.hierarchical_cfg.enabled:
+            return self._hierarchical_sft_forward(data, use_action_chunk_loss)
         observation, actions = self._unpack_sft_batch(data)
         observation = self._observation_to_device(observation)
         actions = self._actions_to_device(actions)
@@ -844,6 +949,52 @@ class Pi0(model.BaseModel):
             "loss": rlt_loss + self.rlt_cfg.rlt_alpha * vla_loss,
             "vla_loss": vla_loss,
             "rlt_loss": rlt_loss,
+        }
+
+    def _hierarchical_sft_forward(
+        self, data: Any, use_action_chunk_loss: bool
+    ) -> dict[str, torch.Tensor]:
+        if self.rlt_cfg.use_rlt:
+            raise ValueError("Hierarchical SFT and RLT cannot be enabled together.")
+        if not isinstance(data, dict) or data.get("objective") not in (
+            "subtask",
+            "flow",
+        ):
+            raise ValueError(
+                "Hierarchical SFT requires a batch with objective='subtask' or 'flow'."
+            )
+        observation, actions = self._unpack_sft_batch(data)
+        observation = self._observation_to_device(observation)
+        if data["objective"] == "subtask":
+            observation = dataclasses.replace(
+                observation,
+                **{
+                    name: data[f"high_level_{name}"].to(self.device)
+                    for name in (
+                        "tokenized_prompt",
+                        "tokenized_prompt_mask",
+                        "token_ar_mask",
+                        "token_loss_mask",
+                    )
+                },
+            )
+            ce = self.compute_subtask_loss(observation, train=True)
+            return {
+                "loss": 2 * self.hierarchical_cfg.text_loss_weight * ce,
+                "subtask_ce": ce.detach(),
+                "subtask_samples": ce.new_tensor(observation.state.shape[0]),
+                "subtask_tokens": observation.token_loss_mask.sum().detach(),
+            }
+        actions = self._actions_to_device(actions)
+        flow = self._reduce_sft_loss(
+            self.compute_loss(observation, actions, train=True), use_action_chunk_loss
+        )
+        # Half the microbatches train each objective; compensate the worker's
+        # division by the full accumulation count to average each loss separately.
+        return {
+            "loss": 2 * self.hierarchical_cfg.flow_loss_weight * flow,
+            "flow_loss": flow.detach(),
+            "action_samples": flow.new_tensor(actions.shape[0]),
         }
 
     def freeze_vlm(self, freeze_action_expert: bool = False) -> int:

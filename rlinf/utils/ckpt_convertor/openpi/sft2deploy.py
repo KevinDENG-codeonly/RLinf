@@ -129,7 +129,15 @@ def sft_to_new_safetensors(
         str(weights_path), map_location="cpu", weights_only=False, mmap=True
     )
     state_dict = as_state_dict(loaded)
-    bare_state = strip_wrapper_prefix(state_dict, cast_dtype=torch.bfloat16)
+    from rlinf.models.embodiment.openpi.lora import merge_lora_state_dict
+
+    bare_state = merge_lora_state_dict(
+        strip_wrapper_prefix(state_dict, cast_dtype=None)
+    )
+    bare_state = {
+        key: value.to(torch.bfloat16) if value.is_floating_point() else value
+        for key, value in bare_state.items()
+    }
 
     output_model = pathlib.Path(output_model)
     save_safetensors(bare_state, output_model / "model.safetensors")

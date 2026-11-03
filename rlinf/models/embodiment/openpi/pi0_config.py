@@ -29,6 +29,7 @@ class Pi0Config:
     paligemma_variant: gemma.Variant = "gemma_2b"
     action_expert_variant: gemma.Variant = "gemma_300m"
     pointnet_variant: pointnet.Variant = "pcd"
+    vision_variant: str = "So400m/14"
 
     action_dim: int = 32
     action_horizon: int = 50

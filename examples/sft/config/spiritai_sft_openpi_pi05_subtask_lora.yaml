@@ -1,0 +1,41 @@
+defaults:
+  - spiritai_sft_openpi_pi05_full
+  - _self_
+
+runner:
+  logger:
+    experiment_name: spiritai_pi05_subtask_ce_flow_lora
+  max_steps: 45000
+  save_interval: 5000
+
+data:
+  train_data_paths: /path/to/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks
+
+actor:
+  micro_batch_size: 8
+  global_batch_size: 64
+  optim:
+    total_training_steps: 45000
+    lr_warmup_steps: 750
+  fsdp_config:
+    gradient_checkpointing: false
+    backward_prefetch: pre
+  model:
+    is_lora: true
+    lora_target_scope: openpi_experts
+    lora_rank: 16
+    lora_alpha: 16
+    lora_expert_rank: 32
+    lora_expert_alpha: 32
+    openpi_data:
+      zero_base_action_targets: true
+    openpi:
+      task: sft
+      torch_compile: true
+      hierarchical:
+        enabled: true
+        text_loss_weight: 1.0
+        flow_loss_weight: 10.0
+        max_subtask_tokens: 96
+        planning_interval: 1
+        ce_chunk_size: 32

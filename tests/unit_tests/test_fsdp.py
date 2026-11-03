@@ -785,6 +785,80 @@ def test_actual_group_owns_multiple_modules(tmp_path, wrap_mode):
         dist.destroy_process_group()
 
 
+class _OpenPITokenLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        from rlinf.models.embodiment.openpi.modules.gemma import Embedder
+
+        self.embedder = Embedder(vocab_size=257, embed_dim=16).requires_grad_(False)
+        self.projection = nn.Linear(16, 16, bias=False)
+
+    def forward(self, tokens: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        hidden = self.projection(self.embedder(tokens))
+        return self.embedder(hidden, decode=True, targets=targets, chunk_size=32).mean()
+
+
+def _check_openpi_token_loss_across_ranks(
+    rank: int, world_size: int, rendezvous: str
+) -> None:
+    import copy
+
+    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+    from torch.distributed.fsdp.wrap import ModuleWrapPolicy
+
+    from rlinf.models.embodiment.openpi.modules.gemma import Embedder
+
+    torch.set_num_threads(1)
+    torch.manual_seed(42)
+    dist.init_process_group(
+        "gloo",
+        init_method=rendezvous,
+        rank=rank,
+        world_size=world_size,
+        timeout=timedelta(seconds=60),
+    )
+    try:
+        model = _OpenPITokenLoss()
+        reference = copy.deepcopy(model)
+        wrapped = FSDP(
+            model,
+            auto_wrap_policy=ModuleWrapPolicy({Embedder}),
+            device_id=torch.device("cpu"),
+            use_orig_params=True,
+        )
+        assert isinstance(wrapped.module.embedder, FSDP)
+        for counts in ((98, 69, 64, 76), (64, 76, 98, 69), (1, 32, 33, 65)):
+            tokens = torch.arange(counts[rank]) % 257
+            targets = (tokens + rank + 1) % 257
+            wrapped.zero_grad(set_to_none=True)
+            reference.zero_grad(set_to_none=True)
+            actual = wrapped(tokens, targets)
+            actual.backward()
+            expected = reference(tokens, targets)
+            expected.backward()
+            torch.testing.assert_close(actual, expected)
+            expected_gradient = reference.projection.weight.grad.clone()
+            dist.all_reduce(expected_gradient)
+            expected_gradient /= world_size
+            with FSDP.summon_full_params(wrapped, with_grads=True, writeback=False):
+                torch.testing.assert_close(
+                    wrapped.module.projection.weight.grad, expected_gradient
+                )
+                assert wrapped.module.embedder.embedding.weight.grad is None
+    finally:
+        dist.destroy_process_group()
+
+
+@pytest.mark.parametrize("world_size", [2, 4])
+def test_openpi_token_ce_fsdp_accepts_unequal_rank_token_counts(tmp_path, world_size):
+    torch.multiprocessing.spawn(
+        _check_openpi_token_loss_across_ranks,
+        args=(world_size, f"file://{tmp_path / 'token-loss-init'}"),
+        nprocs=world_size,
+        join=True,
+    )
+
+
 @pytest.mark.parametrize("container", [nn.ModuleList, nn.ModuleDict])
 def test_group_requires_executable_parent(container):
     children = [nn.Linear(2, 2), nn.Linear(2, 2)]

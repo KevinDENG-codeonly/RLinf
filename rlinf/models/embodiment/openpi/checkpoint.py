@@ -155,6 +155,14 @@ def load_full_weights(model, weights_path, *, expect_rlt: bool) -> None:
         _normalize_state_dict(as_state_dict(loaded)),
         weights_path,
     )
+    if any("lora_" in key for key in state_dict) and not getattr(
+        model, "native_lora", False
+    ):
+        raise ValueError(
+            "OpenPI checkpoint contains unmerged LoRA adapters. Resume training "
+            "with runner.resume_dir, or export with "
+            "python -m rlinf.utils.ckpt_convertor.openpi.merge_lora before evaluation."
+        )
     if expect_rlt and not any(key.startswith("rlt_module.") for key in state_dict):
         raise ValueError(
             "openpi RLT checkpoint has no rlt_module.* weights. "

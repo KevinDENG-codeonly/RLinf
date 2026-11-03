@@ -47,6 +47,10 @@ before launch.
      - ``robotwin_adjust_bottle_sft_openpi.yaml``
      - ``model/pi0``
      - ``robotwin_adjust_bottle_sft_openpi``
+   * - SpiritAI FoldBox explicit subtask
+     - ``spiritai_sft_openpi_pi05_subtask_lora.yaml``
+     - ``model/pi0_5``
+     - ``spiritai_sft_openpi_pi05_subtask_lora``
 
 For dual-Franka SFT and deployment, see :doc:`dual_franka_openpi_pytorch`.
 
@@ -535,10 +539,158 @@ RLinf RTC guides sampling at inference time, while this recipe trains the
 ordinary flow-matching objective. It does not train on clean action prefixes
 or use a postfix-only loss.
 
+Train an Explicit Subtask Policy
+--------------------------------
+
+For SpiritAI box folding, use ``spiritai_sft_openpi_pi05_subtask_lora`` to
+fine-tune an existing Pi0.5 base with two supervised views. This downstream
+recipe follows the explicit high-/low-level factorization in the
+`Pi0.5 paper <https://arxiv.org/abs/2504.16054>`_; its training objectives are
+subtask text CE and continuous-action flow matching.
+
+.. list-table:: Views Constructed During Loading
+   :header-rows: 1
+
+   * - Branch
+     - Inputs
+     - Target
+   * - High level
+     - Current images, normalized state, overall instruction
+     - Current subtask text and EOS
+   * - Low level
+     - Current images, normalized state, current subtask
+     - A 50-step action window, padded to 32 dimensions
+
+Keep the LeRobot v2.1 layout. ``task_index`` resolves through
+``meta/tasks.jsonl`` to the overall instruction; each parquet row also needs
+a nonempty ``subtask`` string declared in ``meta/info.json.features``. The
+loader preserves frame alignment and constructs the two views online. The
+low-level text contains the subtask, while the high-level response is causal
+and supervises only the subtask tokens and EOS. Overlength high-level
+sequences raise an error instead of truncating labels.
+
+Native LoRA adapts attention and FFN weights in both Gemma experts. The
+recipe uses VLM rank/alpha 16/16 and Action Expert rank/alpha 32/32, matching
+the expert-specific defaults in `OpenPI Gemma
+<https://github.com/Physical-Intelligence/openpi/blob/main/src/openpi/models/gemma.py>`_.
+RLinf's :doc:`LoRA guide <../../guides/lora>` gives a general rank-32 example;
+it does not specify a dual-expert Pi0.5 joint-SFT recipe. Vision,
+the tied token embedding/output weight, action/time projections, norms, and
+other base parameters stay frozen. Flow gradients reach the VLM adapters
+through the action expert's attention. The tokenizer uses the existing
+PaliGemma vocabulary; its high-level prefix ends in ``Subtask:``.
+
+``ce_chunk_size`` limits the number of response tokens projected at once.
+The projection and CE chunks execute inside one embedding/output-module
+forward, so ranks with different response lengths enter that FSDP wrapper
+the same number of times. Keep chunking inside this boundary when extending
+the loss; rank-local chunk counts must not control sharded-module calls.
+For the unequal-length failure, its fix, and the validation limits, see
+:ref:`openpi-subtask-collective-order`.
+
+This stationary FoldBox recipe sets ``zero_base_action_targets=true``,
+matching the existing full-parameter FoldBox run and its normalization file.
+
+.. warning::
+
+   Keep preprocessing consistent with the statistics. A zero-width base
+   action quantile range can magnify nonzero raw base commands. The
+   hierarchical loader rejects zero-base statistics without the matching
+   ``zero_base_action_targets=true`` transform.
+
+Action windows retain the existing sampler and may cross a subtask boundary;
+the current frame's label conditions the whole window.
+
+The execution settings use FSDP1 ``full_shard`` with
+``backward_prefetch=pre`` and ``gradient_checkpointing=false``.
+``openpi.torch_compile=true`` compiles the existing GELU-GLU kernel;
+it does not compile the whole model. Keep the recipe's FP32 parameter updates,
+BF16 backbone computation, and FP32 reduction policies when comparing runs.
+
+Start with a 100-update two-GPU check using the task's normalization statistics.
+Use the existing venv's Python; the two runner overrides stop the check at 100
+updates and disable checkpoint writes, including the final update:
+
+.. code-block:: bash
+
+   export JAX_PLATFORMS=cpu
+   export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+   .venv/bin/python examples/sft/train_vla_sft.py \
+     --config-name spiritai_sft_openpi_pi05_subtask_lora \
+     data.train_data_paths=/path/to/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks \
+     actor.model.model_path=/path/to/pi05_base_rlinf_pytorch \
+     actor.model.openpi_data.norm_stats_path=/path/to/foldbox_assets/norm_stats.json \
+     runner.max_steps=100 runner.save_interval=-1 \
+     runner.logger.log_path=./logs/spiritai_subtask_check \
+     runner.logger.experiment_name=spiritai_pi05_subtask_ce_flow_lora_100
+
+This uses two FSDP ranks, micro batch 8 per GPU, global batch 64, and four
+accumulation rounds. Every optimizer update contains 32 high-level records
+and 32 low-level action windows. Both ranks follow the same alternating
+branch order. Each loss is averaged over its own records; the configured
+objective is ``text_loss_weight * CE + flow_loss_weight * FM``. Initial
+weights are 1 and 10. These are starting hyperparameters, not evidence of
+better box-folding performance. Track ``subtask_ce``, ``flow_loss``,
+``hl_records_per_update``, ``ll_action_chunks_per_update``,
+``hl_tokens_per_update``, and ``peak_allocated_gib``. Compare action-window
+exposure as well as optimizer steps against flow-only training.
+
+``time/training`` measures a complete optimizer update, including all four
+accumulation rounds, data waiting, computation, and training communication.
+It does not measure a single microbatch. The earlier full-parameter 64/8
+recipe used four rounds and 64 action windows per update; this recipe uses
+two HL and two LL rounds, with 32 action windows. Its text branch adds a
+257,152-class vocabulary projection and CE. Frozen base weights still
+participate in computation and FSDP parameter gathering. FSDP1 units that mix
+frozen weights and adapters can also allocate and reduce gradients for the
+whole flat parameter. See :ref:`openpi-joint-update-timing` for the earlier
+32/2 run's measured timing and its limits; those timings do not validate 64/8.
+
+The recipe keeps a 45,000-update scheduler and 750-update warmup during the
+check. All 100 updates therefore remain in warmup. A completed check verifies
+the training path and finite metrics, rather than convergence or post-warmup
+stability. To start formal training, omit ``runner.max_steps=100`` and
+``runner.save_interval=-1`` and select a fresh log path and experiment name.
+The recipe then runs 45,000 updates and saves every 5,000 updates. Its AdamW
+learning rate and minimum learning rate are both ``1e-5``, so the
+``openpi_cosine`` schedule stays constant after warmup.
+
+Keep ``stateful_loader=true`` and an even accumulation count of at least
+two. Add ``+runner.resume_dir=/path/to/checkpoints/global_step_5000`` to restore
+the saved optimizer, scheduler, loader branch position, and RNG states.
+Resume requires matching data content, preprocessing, normalization, rank
+layout, micro batch, workers, seed, and hierarchical settings.
+
+After training, merge the native adapters before deployment:
+
+.. code-block:: bash
+
+   python -m rlinf.utils.ckpt_convertor.openpi.merge_lora \
+     --ckpt /path/to/checkpoints/global_step_5000 \
+     --output /path/to/merged_pi05_subtask_lora
+
+The export contains bare ``full_weights.pt``, ``norm_stats.json``, and
+``openpi_training.json`` with the training settings and text template
+version. Evaluate with ``realworld_spiritai_eval_pi05_subtask_RTC`` and point
+its model and normalization paths at that directory. Keep the training
+token budget and state convention, and use ``openpi.task=eval``. Loading
+unmerged adapter weights as a bare policy raises an error.
+
+Inference generates a subtask first, then builds a fresh low-level context
+from the current observation and that text. The high-level KV cache is
+separate from the action cache. Direct policy calls regenerate each time;
+callers that retain ``SubtaskPlanningState`` must reset it at episode
+boundaries. The RTC worker owns this state and clears it on ``bootstrap``;
+``planning_interval=3`` refreshes the planner every three action requests.
+A changed subtask clears guidance from the previous action chunk. Generated
+text and planning time are logged; an empty subtask stops action generation.
+Keep real-robot success and generalization across box models as separate
+evaluations after validating the training and inference path.
+
 Evaluation
 ----------
 
-SFT writes ``full_weights.pt`` under
+Flow-only SFT writes ``full_weights.pt`` under
 ``.../checkpoints/global_step_<N>/actor/model_state_dict/``. ``openpi``
 eval can load that ``.pt`` (or the ``global_step_<N>`` directory) directly:
 wrapper / FSDP prefixes are stripped in memory, and the eval YAML supplies the

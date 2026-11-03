@@ -43,6 +43,7 @@ class RTCMultiStepRolloutWorker(MultiStepRolloutWorker):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
         self._rtc_eval_model_actions: torch.Tensor | None = None
+        self._subtask_state = None
         rtc_cfg = self.cfg.runner.get("rtc", {})
         self.inject_delay_ms = float(rtc_cfg.get("inject_delay_ms", 0.0))
         self.fixed_delay_steps = int(rtc_cfg.get("fixed_delay_steps", 0))
@@ -54,6 +55,8 @@ class RTCMultiStepRolloutWorker(MultiStepRolloutWorker):
             self.reload_model()
 
         self._rtc_eval_model_actions = None
+        if self._subtask_state is not None:
+            self._subtask_state.reset()
 
         pbar = tqdm(desc="Evaluating RTC Rollout", disable=(self._rank != 0))
         try:
@@ -78,6 +81,17 @@ class RTCMultiStepRolloutWorker(MultiStepRolloutWorker):
             start_time = time.time()
         rtc_context = None
         guidance_applied = False
+        hierarchy = getattr(self.hf_model, "hierarchical_cfg", None)
+        planning_kwargs = {}
+        if hierarchy is not None and hierarchy.enabled:
+            from rlinf.models.embodiment.openpi.hierarchical import SubtaskPlanningState
+
+            if self._subtask_state is None:
+                self._subtask_state = SubtaskPlanningState()
+            if rtc_request.request_type == "bootstrap":
+                self._subtask_state.reset()
+                self._rtc_eval_model_actions = None
+            planning_kwargs["subtask_state"] = self._subtask_state
         if (
             rtc_request.request_type == "replan"
             and self._rtc_eval_model_actions is not None
@@ -98,6 +112,13 @@ class RTCMultiStepRolloutWorker(MultiStepRolloutWorker):
                 env_obs=rtc_request.obs,
                 mode="eval",
                 rtc_context=rtc_context,
+                **planning_kwargs,
+            )
+        guidance_applied = result.get("rtc_guidance_applied", guidance_applied)
+        if result.get("subtask_regenerated", False):
+            self.log_info(
+                f"Generated subtasks={result['subtasks']}, "
+                f"planning_seconds={result['planning_seconds']:.3f}"
             )
 
         if rtc_request.request_type == "replan":

@@ -191,8 +191,40 @@ class Embedder(nn.Module):
         self.embedding = nn.Embedding(vocab_size, embed_dim)
         nn.init.normal_(self.embedding.weight)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.encode(x)
+    def forward(
+        self,
+        x: torch.Tensor,
+        *,
+        decode: bool = False,
+        targets: torch.Tensor | None = None,
+        chunk_size: int = 32,
+    ) -> torch.Tensor:
+        """Encode tokens, decode logits, or return one CE loss per target token.
+
+        Target-token chunking stays inside one forward so an FSDP wrapper has
+        the same invocation count on ranks with different response lengths.
+        """
+        if targets is not None:
+            if not decode:
+                raise ValueError("Token CE targets require decode=True.")
+            if x.ndim != 2 or targets.shape != x.shape[:1] or not x.shape[0]:
+                raise ValueError(
+                    "Expected nonempty hidden [tokens, width] and targets [tokens], "
+                    f"got hidden {tuple(x.shape)} and targets {tuple(targets.shape)}."
+                )
+            if chunk_size <= 0:
+                raise ValueError(f"Expected positive CE chunk_size, got {chunk_size}.")
+            losses = []
+            for start in range(0, targets.numel(), chunk_size):
+                stop = start + chunk_size
+                logits = self.decode(x[start:stop])
+                losses.append(
+                    F.cross_entropy(
+                        logits.float(), targets[start:stop], reduction="none"
+                    )
+                )
+            return torch.cat(losses)
+        return self.decode(x) if decode else self.encode(x)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         x = self.embedding(x)

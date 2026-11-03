@@ -1,0 +1,119 @@
+{
+  "verified_at_utc": "2026-11-02T03:21:09.426496+00:00",
+  "failure": "Per-rank target-token counts determined the number of FSDP-wrapped Embedder output forwards in a CE chunk loop.",
+  "data_trigger": {
+    "assumptions": "Configured seed42, epoch0, two-rank DistributedSampler, microbatch2, CE chunk32; CPU-only label audit, no training execution.",
+    "first_mismatches": [
+      {
+        "update": 14,
+        "microbatch": 2,
+        "target_tokens": [
+          98,
+          69
+        ],
+        "ce_chunks": [
+          4,
+          3
+        ]
+      },
+      {
+        "update": 14,
+        "microbatch": 4,
+        "target_tokens": [
+          64,
+          76
+        ],
+        "ce_chunks": [
+          2,
+          3
+        ]
+      }
+    ],
+    "update_14": [
+      {
+        "update": 14,
+        "microbatch": 0,
+        "target_tokens": [
+          70,
+          90
+        ],
+        "ce_chunks": [
+          3,
+          3
+        ]
+      },
+      {
+        "update": 14,
+        "microbatch": 2,
+        "target_tokens": [
+          98,
+          69
+        ],
+        "ce_chunks": [
+          4,
+          3
+        ]
+      },
+      {
+        "update": 14,
+        "microbatch": 4,
+        "target_tokens": [
+          64,
+          76
+        ],
+        "ce_chunks": [
+          2,
+          3
+        ]
+      },
+      {
+        "update": 14,
+        "microbatch": 6,
+        "target_tokens": [
+          71,
+          81
+        ],
+        "ce_chunks": [
+          3,
+          3
+        ]
+      }
+    ],
+    "labels_seen": 12
+  },
+  "fix": "Enter Embedder.forward once for target-token CE; compute variable local chunks entirely inside that FSDP forward, and keep per-example loss aggregation outside.",
+  "preserved": [
+    "CE on shifted Subtask tokens and EOS",
+    "per-example mean CE",
+    "CE chunk size 32",
+    "LoRA and shared VLM FM gradients",
+    "CE/FM loss weights",
+    "checkpoint parameter keys and text template",
+    "WandB; 5000 manual steps; 1500 warmup; saves at 2500 and 5000"
+  ],
+  "checks": {
+    "legacy_negative_control": "Expected failure: real CPU/Gloo FSDP detected mismatched collectives for 98/69 tokens.",
+    "distributed_fixed": "Real CPU/Gloo FSDP, 2 and 4 ranks, three unequal-length patterns; loss and reduced parameter gradients match unsharded reference.",
+    "model_integration": "Real small Pi0 Subtask CE enters the output module once even with one-token chunks.",
+    "component_tests": "166 passed, 2 skipped across test_models.py and test_fsdp.py.",
+    "skips": [
+      "Optional transformers.Gemma3ForCausalLM unavailable",
+      "Existing CUDA-only two-GPU test deliberately skipped in CPU run"
+    ],
+    "docs": "EN/ZH build: 0 warnings; markup and symbol checks passed.",
+    "lint": "Ruff lint/format and git diff --check passed."
+  },
+  "limits": [
+    "No GPU experiment training was started, stopped, or restarted by the assistant.",
+    "The user must manually rerun the real two-GPU experiment to verify progress beyond the former step-14 trigger and long-run stability.",
+    "No larger GPU cluster or NCCL runtime was used in these CPU regression tests."
+  ],
+  "manual_gpu_confirmation": {
+    "reported_by_user": "Confirmed progress beyond optimizer update 14 after manual restart.",
+    "run_id": "yq3csm8g",
+    "observed_complete_updates": 147,
+    "source": "logs/pi05_exp_c_5000_cefix/wandb/wandb/run-20261102_112603-yq3csm8g/run-yq3csm8g.wandb",
+    "snapshot_utc": "2026-11-02T03:41:20+00:00",
+    "limit": "This confirms passage of the former trigger, not completion of the 5000-update run or task quality."
+  }
+}

@@ -48,6 +48,7 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> Any:
 
     from omegaconf import OmegaConf
 
+    from rlinf.models.embodiment.openpi.hierarchical import HierarchicalConfig
     from rlinf.models.embodiment.openpi.pi0 import Pi0
     from rlinf.models.embodiment.openpi.pi0_config import Pi0Config
 
@@ -122,6 +123,13 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> Any:
 
     task = OmegaConf.select(model_cfg, "task", default="sft")
     task = str(task).lower() if task is not None else "sft"
+    hierarchical_cfg = HierarchicalConfig.from_mapping(model_cfg.get("hierarchical"))
+    if task == "eval" and full_weights_path is not None:
+        _validate_hierarchical_checkpoint(
+            full_weights_path, pi0_config, hierarchical_cfg
+        )
+    if hierarchical_cfg.enabled and (task not in ("sft", "eval") or rlt_cfg.use_rlt):
+        raise ValueError("Explicit subtask planning supports SFT/eval without RLT.")
 
     if task == "sft":
         model = Pi0(
@@ -130,6 +138,7 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> Any:
             action_env_dim=action_env_dim,
             action_chunk=action_chunk,
             rlt_cfg=rlt_cfg,
+            hierarchical_cfg=hierarchical_cfg,
         )
     elif task == "eval":
         from rlinf.models.embodiment.openpi.tasks.eval import Pi0Eval
@@ -141,6 +150,7 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> Any:
             config_name=config_name,
             state_indices=OmegaConf.select(model_cfg, "state_indices", default=None),
             rlt_cfg=rlt_cfg,
+            hierarchical_cfg=hierarchical_cfg,
             rtc_enabled=bool(OmegaConf.select(model_cfg, "rtc_enabled", default=False)),
             rtc_guidance_mode=str(
                 OmegaConf.select(model_cfg, "rtc_guidance_mode", default="approx")
@@ -281,6 +291,38 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> Any:
         action_chunk,
     )
     return model
+
+
+def _validate_hierarchical_checkpoint(
+    weights_path, model_config, hierarchical_config
+) -> None:
+    """Reject deployment settings that would change a trained planner's inputs."""
+    import json
+
+    metadata_path = weights_path.parent / "openpi_training.json"
+    if not metadata_path.is_file():
+        return
+    metadata = json.loads(metadata_path.read_text())
+    if metadata.get("text_template_version") != 1:
+        raise ValueError("Expected checkpoint text_template_version=1.")
+    trained = metadata["model"]["openpi"]
+    if (
+        trained.get("hierarchical", {}).get("enabled", False)
+        and not hierarchical_config.enabled
+    ):
+        raise ValueError(
+            "This checkpoint requires openpi.hierarchical.enabled=true for explicit subtask inference."
+        )
+    for name in (
+        "max_token_len",
+        "discrete_state_input",
+        "paligemma_variant",
+        "action_expert_variant",
+    ):
+        if name in trained and trained[name] != getattr(model_config, name):
+            raise ValueError(
+                f"Checkpoint requires openpi.{name}={trained[name]!r}; got {getattr(model_config, name)!r}."
+            )
 
 
 def _freeze_after_load(model, task: str) -> None:

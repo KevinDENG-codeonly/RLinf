@@ -26,6 +26,7 @@ from omegaconf import OmegaConf
 from torchdata.stateful_dataloader import StatefulDataLoader
 
 from rlinf.data.storage.lerobot import resolve_lerobot_repo_id
+from rlinf.models.embodiment.openpi.hierarchical import HierarchicalConfig
 from rlinf.models.embodiment.openpi.transforms.pipeline import (
     norm_stats_path_from_data_kwargs,
     select_openpi_norm_stats,
@@ -97,6 +98,8 @@ class StatefulOpenPIDataLoader(StatefulDataLoader):
         self._config = data_config
         self._signature = signature
         self._restored_generator = None
+        self._hierarchical = signature.get("hierarchical", {}).get("enabled", False)
+        self._objective_offset = 0
         if not len(self):
             raise ValueError("Expected at least one complete OpenPI batch per rank.")
 
@@ -104,7 +107,7 @@ class StatefulOpenPIDataLoader(StatefulDataLoader):
         """Return the OpenPI transforms and normalization configuration."""
         return self._config
 
-    def __iter__(self) -> Iterator[tuple[Any, torch.Tensor]]:
+    def __iter__(self) -> Iterator[tuple[Any, torch.Tensor] | dict[str, Any]]:
         from openpi.models.model import Observation
         from torch.utils._pytree import tree_map
 
@@ -114,16 +117,34 @@ class StatefulOpenPIDataLoader(StatefulDataLoader):
             self._restored_generator = None
         for batch in iterator:
             batch = tree_map(torch.as_tensor, batch)
-            yield Observation.from_dict(batch), batch["actions"]
+            observation = Observation.from_dict(batch)
+            if self._hierarchical:
+                objective = "subtask" if self._objective_offset % 2 == 0 else "flow"
+                self._objective_offset += 1
+                yield {
+                    "observation": observation,
+                    "actions": batch["actions"],
+                    "objective": objective,
+                    **{
+                        key: value
+                        for key, value in batch.items()
+                        if key.startswith("high_level_")
+                    },
+                }
+            else:
+                yield observation, batch["actions"]
 
     def state_dict(self) -> dict[str, Any]:
         """Snapshot the sampler, prefetched data, and worker random states."""
-        return {
+        state = {
             "signature": self._signature,
             "epoch": self.sampler.epoch,
             "generator": self.generator.get_state(),
             "loader": super().state_dict(),
         }
+        if self._hierarchical:
+            state["objective_offset"] = self._objective_offset
+        return state
 
     def load_state_dict(self, state: dict[str, Any]) -> None:
         """Restore only with unchanged data, preprocessing, and rank layout."""
@@ -136,6 +157,27 @@ class StatefulOpenPIDataLoader(StatefulDataLoader):
         super().load_state_dict(state["loader"])
         self.generator.set_state(state["generator"])
         self._restored_generator = state["generator"]
+        if self._hierarchical:
+            self._objective_offset = state["objective_offset"]
+
+
+def _validate_hierarchical_normalization(data_config: Any, zero_base: bool) -> None:
+    """Require the stationary-base transform when its action stats encode zero."""
+    if zero_base:
+        return
+    from rlinf.models.embodiment.openpi.policies.spiritai_policy import ACTION_DIM
+
+    stats = (data_config.norm_stats or {}).get("actions")
+    if stats is None or stats.q01 is None or stats.q99 is None:
+        return
+    lower = np.asarray(stats.q01)[ACTION_DIM - 3 : ACTION_DIM]
+    upper = np.asarray(stats.q99)[ACTION_DIM - 3 : ACTION_DIM]
+    if lower.shape == (3,) and np.all(lower == 0) and np.all(upper == 0):
+        raise ValueError(
+            "FoldBox action stats encode zero base commands. Set "
+            "openpi_data.zero_base_action_targets=true to match them, or supply "
+            "statistics for the intended nonzero base-action targets."
+        )
 
 
 def build_official_openpi_sft_dataloader(
@@ -185,6 +227,23 @@ def build_official_openpi_sft_dataloader(
     _validate_openpi_model_shape(model_cfg, config)
 
     stateful_loader = OmegaConf.select(cfg, "data.stateful_loader", default=False)
+    hierarchy = HierarchicalConfig.from_mapping(model_cfg.openpi.get("hierarchical"))
+    if hierarchy.enabled:
+        accumulation = cfg.actor.global_batch_size // (batch_size * world_size)
+        if (
+            not stateful_loader
+            or cfg.actor.global_batch_size % (batch_size * world_size)
+            or accumulation < 2
+            or accumulation % 2
+        ):
+            raise ValueError(
+                "Hierarchical SFT requires stateful_loader=true and an even "
+                "gradient accumulation count >= 2 for one HL/LL pair per update."
+            )
+        if model_cfg.openpi.config_name != "pi05_spiritai_cartesian":
+            raise ValueError(
+                "Hierarchical SFT currently requires pi05_spiritai_cartesian."
+            )
     trim_interval = OmegaConf.select(cfg, "data.worker_malloc_trim_interval", default=0)
     if trim_interval != 0 and not stateful_loader:
         raise ValueError(
@@ -203,6 +262,40 @@ def build_official_openpi_sft_dataloader(
                     f"{config.name}, got {value}."
                 )
         data_config = config.data.create(config.assets_dirs, config.model)
+        if hierarchy.enabled:
+            _validate_hierarchical_normalization(
+                data_config,
+                bool((data_kwargs or {}).get("zero_base_action_targets", False)),
+            )
+            from openpi.transforms import compose
+
+            from rlinf.models.embodiment.openpi.hierarchical import (
+                HierarchicalInputs,
+                SubtaskTokenizer,
+                TokenizeHighLevel,
+            )
+
+            data_config = dataclasses.replace(
+                data_config,
+                data_transforms=dataclasses.replace(
+                    data_config.data_transforms,
+                    inputs=[
+                        HierarchicalInputs(compose(data_config.data_transforms.inputs))
+                    ],
+                ),
+                model_transforms=dataclasses.replace(
+                    data_config.model_transforms,
+                    inputs=[
+                        TokenizeHighLevel(
+                            SubtaskTokenizer(
+                                config.model.max_token_len, hierarchy.max_subtask_tokens
+                            ),
+                            config.model.discrete_state_input,
+                        ),
+                        *data_config.model_transforms.inputs,
+                    ],
+                ),
+            )
         if data_config.rlds_data_dir is not None:
             raise ValueError(
                 "Stateful OpenPI loading requires a map-style LeRobot dataset."
@@ -233,6 +326,25 @@ def build_official_openpi_sft_dataloader(
             "data_kwargs": data_kwargs,
             "norm_sha256": hashlib.sha256(norm_path.read_bytes()).hexdigest(),
         }
+        if hierarchy.enabled:
+            from lerobot.datasets.lerobot_dataset import LeRobotDatasetMetadata
+
+            root = LeRobotDatasetMetadata(repo_id).root
+            fingerprint = hashlib.sha256()
+            paths = [
+                root / "meta/info.json",
+                root / "meta/tasks.jsonl",
+                root / "meta/episodes.jsonl",
+            ]
+            paths.extend(sorted((root / "data").rglob("*.parquet")))
+            for path in paths:
+                fingerprint.update(str(path.relative_to(root)).encode())
+                with path.open("rb") as source:
+                    for block in iter(lambda: source.read(8 * 1024 * 1024), b""):
+                        fingerprint.update(block)
+            signature["hierarchical"] = dataclasses.asdict(hierarchy)
+            signature["hierarchical_format_version"] = 1
+            signature["data_sha256"] = fingerprint.hexdigest()
         sampler = torch.utils.data.DistributedSampler(
             dataset,
             num_replicas=world_size,

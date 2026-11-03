@@ -589,6 +589,11 @@ class MultiStepRolloutWorker(Worker):
             actions = torch.from_numpy(actions)
 
         result["expert_label_flag"] = bool(expert_label_flag)
+        if result.get("subtask_regenerated", False):
+            self.log_info(
+                f"Generated subtasks={result['subtasks']}, "
+                f"planning_seconds={result['planning_seconds']:.3f}"
+            )
         return actions, result
 
     def _predict_rollout_actions(

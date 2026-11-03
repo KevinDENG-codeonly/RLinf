@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torchdata.stateful_dataloader import StatefulDataLoader
 
 from rlinf.config import SupportedModel
@@ -89,6 +91,35 @@ class FSDPVlaSftWorker(FSDPSftWorker):
         # now the eval is not supported for embodied sft
         raise NotImplementedError("eval is not supported for embodied sft right now.")
 
+    def run_training(self) -> dict[str, float]:
+        """Train one update and record objective exposure and peak rank memory."""
+        hierarchy = self.cfg.actor.model.get("openpi", {}).get("hierarchical", {})
+        enabled = hierarchy.get("enabled", False)
+        if enabled:
+            self.torch_platform.reset_peak_memory_stats()
+        metrics = super().run_training()
+        if enabled:
+            objective_microbatches = self.gradient_accumulation // 2
+            metrics["hl_records_per_update"] = self.cfg.actor.global_batch_size // 2
+            metrics["ll_action_chunks_per_update"] = (
+                self.cfg.actor.global_batch_size // 2
+            )
+            metrics["hl_tokens_per_update"] = (
+                metrics.pop("subtask_tokens")
+                * objective_microbatches
+                * self._world_size
+            )
+            peak = torch.tensor(
+                self.torch_platform.max_memory_allocated(),
+                device=self.device,
+                dtype=torch.float64,
+            )
+            torch.distributed.all_reduce(peak, op=torch.distributed.ReduceOp.MAX)
+            metrics["peak_allocated_gib"] = peak.item() / 1024**3
+            metrics.pop("subtask_samples", None)
+            metrics.pop("action_samples", None)
+        return metrics
+
     def get_train_model_output(self, batch: Any) -> tuple[torch.Tensor, dict[str, Any]]:
         with self.amp_context:
             output = self.model(forward_type=ForwardType.SFT, data=batch)
@@ -113,6 +144,37 @@ class FSDPVlaSftWorker(FSDPSftWorker):
     def save_checkpoint(self, save_path: str, step: int = 0) -> None:
         super().save_checkpoint(save_path, step)
 
+        if (
+            self._rank == 0
+            and self.cfg.actor.model.model_type == SupportedModel.OPENPI.value
+        ):
+            hierarchy = self.cfg.actor.model.openpi.get("hierarchical", {})
+            if hierarchy.get("enabled", False):
+                from rlinf.models.embodiment.openpi.transforms.pipeline import (
+                    norm_stats_path_from_data_kwargs,
+                )
+
+                norm_path = Path(
+                    norm_stats_path_from_data_kwargs(
+                        self.cfg.actor.model.get("openpi_data")
+                    )
+                )
+                if norm_path.is_dir():
+                    norm_path = norm_path / "norm_stats.json"
+                metadata = {
+                    "format_version": 1,
+                    "step": step,
+                    "model": OmegaConf.to_container(self.cfg.actor.model, resolve=True),
+                    "normalization": json.loads(norm_path.read_text()),
+                    "text_template_version": 1,
+                    "lora_parameter_counts": getattr(
+                        self.model, "lora_parameter_counts", None
+                    ),
+                }
+                (Path(save_path) / "openpi_training.json").write_text(
+                    json.dumps(metadata, indent=2) + "\n"
+                )
+
         if isinstance(self.data_loader, StatefulDataLoader):
             state = self.data_loader.state_dict()
 
@@ -133,6 +195,26 @@ class FSDPVlaSftWorker(FSDPSftWorker):
             torch.distributed.barrier()
 
     def load_checkpoint(self, load_path: str) -> None:
+        hierarchy = self.cfg.actor.model.get("openpi", {}).get("hierarchical", {})
+        if hierarchy.get("enabled", False):
+            path = Path(load_path) / "openpi_training.json"
+            if not path.is_file():
+                raise FileNotFoundError(
+                    f"Expected hierarchical training settings at {path}."
+                )
+            saved = json.loads(path.read_text())
+            if saved.get("text_template_version") != 1:
+                raise ValueError("Expected checkpoint text_template_version=1.")
+            for name in (
+                "is_lora",
+                "lora_target_scope",
+                "lora_rank",
+                "lora_alpha",
+                "lora_expert_rank",
+                "lora_expert_alpha",
+            ):
+                if saved["model"].get(name) != self.cfg.actor.model.get(name):
+                    raise ValueError(f"OpenPI resume requires unchanged {name}.")
         super().load_checkpoint(load_path)
 
         if isinstance(self.data_loader, StatefulDataLoader):
