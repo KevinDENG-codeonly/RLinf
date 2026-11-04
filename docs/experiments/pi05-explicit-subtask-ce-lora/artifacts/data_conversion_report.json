@@ -1,0 +1,43 @@
+{
+  "created_utc": "2026-10-30T03:26:29.822248+00:00",
+  "source": "/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_10Annotations",
+  "staging": "/tmp/pi05-subtask-v21.eUzqZT/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks",
+  "destination": "/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks",
+  "codebase_version": "v2.1",
+  "counts": {
+    "episodes": 712,
+    "frames": 1148747
+  },
+  "overall_instruction": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.",
+  "subtask_vocabulary": {
+    "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned.": 185862,
+    "Use the left gripper to hold down the lower side of the carton blank, while using the right gripper to grasp the upper right section of the main wall and pull the main wall upward and toward the robot.": 123190,
+    "Once the main wall is upright, keep the right gripper holding it and move the left gripper to securely grasp the top edge of the main wall.": 91805,
+    "After the left gripper has taken over support, open the right gripper and release the upper right section of the main wall. Adjust the cardboard vertical to table.": 56009,
+    "Use the right gripper to push the right side wall flap, fold it inward into the box cavity, and press it repeatedly until the right side wall is formed and remains stable.": 189032,
+    "Use the right gripper to hold the right side wall and stabilize the partially formed box. Then have the left gripper release the top edge of the main wall, move to the left side of the box, and prepare to handle the left-side structure.": 32423,
+    "Use the left gripper to push the left side wall flap, fold it inward into the box cavity, and press it repeatedly until the left side wall is formed and the box remains stable.": 190662,
+    "Use the right gripper to grasp the formed box, move it from the center of the work area to the right side placement area on the table, and release the gripper once the box is stable.": 79176,
+    "Move the left gripper into the box cavity, guide the left inner corner flap toward the left inner corner, and align the flap so that it faces inward.": 71382,
+    "[Recovery] Use the right gripper to push the right side wall flap, fold it inward into the box cavity, try it for several times and press it repeatedly until the right side wall is formed and remains stable.": 36130,
+    "Move the right gripper into the box cavity, guide the right inner corner flap toward the right inner corner, and align the flap so that it faces inward.": 70553,
+    "[Recovery] Use the left gripper to push the left side wall flap, fold it inward into the box cavity, try it for several times and press it repeatedly until the left side wall is formed and the box remains stable.": 22523
+  },
+  "changes": [
+    "Parquet: remap task_index to 0 and append only the subtask string column.",
+    "meta/tasks.jsonl: task 0 is the existing overall instruction.",
+    "meta/info.json: total_tasks=1 and add the subtask feature; all other fields unchanged.",
+    "meta/episodes.jsonl: only tasks changes to [overall]; every annotation and other field unchanged."
+  ],
+  "unchanged_exports": [
+    "annotations.json",
+    "dataset.json",
+    "meta/tasks_original.jsonl",
+    "meta/episodes_stats.jsonl"
+  ],
+  "new_files_inside_dataset": [],
+  "semantic_relabeling": false,
+  "source_annotation_timestamps_changed": false,
+  "export_note": "Source dataset.json and annotations.json are retained byte-for-byte as requested; as in the source, dataset.json is an older export and not the active LeRobot metadata.",
+  "source_metadata_note": "Existing total_videos=2136 is preserved; actual source contains 4272 mp4 files. This conversion does not repair unrelated source metadata."
+}

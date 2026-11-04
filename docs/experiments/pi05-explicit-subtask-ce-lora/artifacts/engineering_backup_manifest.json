@@ -1,0 +1,131 @@
+{
+  "assembled_at_utc": "2026-11-04T04:56:49.243384+00:00",
+  "implementation_commit": "3a7af6d104afb24e0baf883ad1dd66c045040e69",
+  "implementation_branch": "feature/pi05-flow-explict-subtask-ce-lora",
+  "remote": "https://github.com/KevinDENG-codeonly/RLinf",
+  "scope": "Engineering documentation backup only; no training, evaluation, model mutation, or dataset conversion performed during this archive pass.",
+  "evidence_cutoff": "Training/collective records are from 2026-11-02; historical data conversion is from 2026-10-30. Formal 45000-update run completion was not audited in this pass.",
+  "source_sha256": {
+    ".github/workflows/ci-tests.yml": "8e50b472630a577be057e8fd3cd0e7a8c75caa06b54635f3421f3c0fb1d31ce4",
+    "evaluations/realworld/realworld_spiritai_eval_pi05_subtask_RTC.yaml": "9df6e4b7dcbedf798b4acfbffc1024842d676fe619158f2a4998cb33ae19cb86",
+    "examples/sft/config/spiritai_sft_openpi_pi05_full.yaml": "fedfa4a107c3cf7794cf2575b55b8fec18c15fb592219caca8a0b971f1da86be",
+    "examples/sft/config/spiritai_sft_openpi_pi05_subtask_lora.yaml": "61a88753a322740f3f1654f3bb602c567b2220d8a9002f196785e38050a92e3f",
+    "examples/sft/train_vla_sft.py": "72b3e236dae81e866af1070e236a1a2dce5d916935c54d91d77173a6ea06faec",
+    "rlinf/data/datasets/openpi/official_sft_data_loader.py": "55ce9b528994dcc5151456c81d9090c1e98683972ef7d36322d4dd3971a2725c",
+    "rlinf/models/__init__.py": "84b49f901f879b2b22904bdbaa2aef6629a38eb09124f73ba4d87cc500185f88",
+    "rlinf/models/embodiment/openpi/__init__.py": "000b4eceff6e1499b4fe819a23f94b0c4b5c3f175796fc1d0493f29975f7dc77",
+    "rlinf/models/embodiment/openpi/checkpoint.py": "bf77af55886dcb804f41fbf7b8b90c84cd13e092f996c5ce76efac52f7ada905",
+    "rlinf/models/embodiment/openpi/hierarchical.py": "835cf91ea1ed2971a86eed0e1c1d870174d8da6d75b4ae2805398d0be3d989a5",
+    "rlinf/models/embodiment/openpi/lora.py": "bd91110de6e5faa48113b761dc32b766060104516557078992e965ca1b49eb00",
+    "rlinf/models/embodiment/openpi/modules/gemma.py": "8ad12843b6a6eb4759cfa876f6f27e917cbf178702d536a3f78ad7d6fa356ad3",
+    "rlinf/models/embodiment/openpi/modules/lora.py": "93280ef4d74a6fd1cde8869d0b23b0ad9293d98b77d634c7516f840f53b12a54",
+    "rlinf/models/embodiment/openpi/pi0.py": "731ec190e2a00ed628320288579462bc3f5beb3ec5c2123ffad2f2833589807e",
+    "rlinf/models/embodiment/openpi/pi0_config.py": "5a2a0067dc730da32ca0b1298df0166633998164020d5abf3ff670a68c070ced",
+    "rlinf/models/embodiment/openpi/tasks/eval.py": "4ce65f005b8503d55bc48d97c6cf142174796de935ab9200f8d1053d4890b427",
+    "rlinf/utils/ckpt_convertor/openpi/merge_lora.py": "fb5587afb5c762b555f2b60b72e9f226f3d856c5a489008f5c68e64a42d69277",
+    "rlinf/utils/ckpt_convertor/openpi/sft2deploy.py": "00330544ca56dbf53ffeba2bc8fb986a81d5f2b99f1916bf639bcf409aed5a95",
+    "rlinf/workers/rollout/hf/huggingface_worker.py": "bc8d206855fb247bd89a97f0b6ccb798b87ea512dccd45c489f57a3872a10f07",
+    "rlinf/workers/rollout/hf/rtc_huggingface_worker.py": "96a0769c900eb0842fa1cdbf6d72fedef1321539a1cd0133b4613293e5b4c229",
+    "rlinf/workers/sft/fsdp_sft_worker.py": "80a0dc334d9f31168cfb00830865f59eae9d89dfcadd9cdcd926163ff95aeb25",
+    "rlinf/workers/sft/fsdp_vla_sft_worker.py": "f23bab8d0118bb106d4edb796783bb3f316e4717d4168f2115986710bbf97ef2",
+    "tests/unit_tests/test_data.py": "cb42f35cbaed4c097cda3964970b37690498e88024b2c0a30ac55730e36dd2c6",
+    "tests/unit_tests/test_fsdp.py": "331f2604e482b4368afb7b067a21c49a5478e56f8e7de5ce71bc364caeaae596",
+    "tests/unit_tests/test_models.py": "c71cd6f5c3a953a1bf63f46448de7795c93dab47f7b17f01c45174339e3da1b0"
+  },
+  "dataset": {
+    "root": "/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks",
+    "codebase_version": "v2.1",
+    "total_episodes": 712,
+    "total_frames": 1148747,
+    "total_tasks": 1,
+    "fps": 30,
+    "subtask_feature": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "metadata_sha256": {
+      "meta/episodes.jsonl": "a8db1181902fe4a9e89012fcae9a1a36a14d7513ddfef327dd5c810d5aaca9a0",
+      "meta/episodes_stats.jsonl": "ea99a9f26eff477ff414b82349cce0c752c36a610d22bda9ca3fff9bc8828d8a",
+      "meta/info.json": "20c025bc5434fff2c3aba69f720517a20e6e093f97b9a839e4ae9c1a5151a18f",
+      "meta/tasks.jsonl": "5e64312c0394fec6c6f9246e655d563452120c2b6a5c6ee6d30b81cc22fae167",
+      "meta/tasks_original.jsonl": "82f01685c3acc6db5cb37928cdd5ae8b50dbe04c037ed08d76a72c03826cca1b"
+    },
+    "archive_pass_checks": [
+      "Read active meta/info.json and meta/tasks.jsonl",
+      "Counted 712 parquet episode files",
+      "Read task_index/subtask from the first parquet row",
+      "No complete parquet content hash or fresh full video decode was performed"
+    ]
+  },
+  "external_assets": {
+    "base_checkpoint": "/home/deng/Documents/codebase/RLinf/model_checkpoints/pi05_base_rlinf_pytorch",
+    "base_checkpoint_weights_hashed": false,
+    "normalization_path": "/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json",
+    "normalization_sha256": "8de11605d0f64116b6accac671c7156dc7e4a6bc917db10fafef6c4db186f505",
+    "python_executable": "/home/deng/Documents/codebase/RLinf/.venv/bin/python"
+  },
+  "report_provenance": {
+    "data_conversion_report.json": {
+      "source": "/tmp/pi05-subtask-v21.eUzqZT/conversion_report.json",
+      "source_sha256": "7b843dd20b7e4082731636f7dcee3c24479bfbdca5091a4dac94b494d2b1d417",
+      "archive_sha256": "7b843dd20b7e4082731636f7dcee3c24479bfbdca5091a4dac94b494d2b1d417",
+      "copy_mode": "byte-for-byte historical report"
+    },
+    "data_reader_smoke_test.json": {
+      "source": "/tmp/pi05-subtask-v21.eUzqZT/reader_smoke_test.json",
+      "source_sha256": "38c75403a33c2207f2346eb661472e40dd7ff90fca44e59bab7b2820c6794b34",
+      "archive_sha256": "38c75403a33c2207f2346eb661472e40dd7ff90fca44e59bab7b2820c6794b34",
+      "copy_mode": "byte-for-byte historical report"
+    }
+  },
+  "environment_snapshot_at_documentation_time": {
+    "python": "3.11.14",
+    "packages": {
+      "torch": "2.11.0+cu130",
+      "ray": "2.59.0",
+      "lerobot": "0.3.3",
+      "openpi": "distribution metadata unavailable",
+      "torchdata": "0.11.0",
+      "hydra-core": "1.3.8",
+      "omegaconf": "2.3.1",
+      "wandb": "0.25.0",
+      "numpy": "1.26.4",
+      "pyarrow": "25.0.1",
+      "jax": "0.5.3",
+      "transformers": "4.57.6"
+    },
+    "limit": "Package metadata observed at documentation time; not an installation lockfile or independent proof of every historical training package version."
+  },
+  "artifact_sha256": {
+    "aligned_100_step_validation.json": "809fcf39847c4cda8e878f64d6cb605810908061d14f39f0538f0cf27f1bf1ff",
+    "collective_fix_validation.json": "62034dd3a15ec9a8918a1577d55f88a9df3dcc0988dfcfc5e71baaf030777f2a",
+    "data_conversion_report.json": "7b843dd20b7e4082731636f7dcee3c24479bfbdca5091a4dac94b494d2b1d417",
+    "data_reader_smoke_test.json": "38c75403a33c2207f2346eb661472e40dd7ff90fca44e59bab7b2820c6794b34",
+    "execution_tuning_summary.json": "416008b16c11582e99793b65f4f40f89abd4e71dfcac8fd1db06cd0261664f4f",
+    "selected_execution_100_step_validation.json": "3b21037021dbebf8ae2ebd450650765a23bfca7dd6bfc2807e5618081bbc43ea",
+    "timing_comparison.json": "7cac40bc24afd82f93029fd110364367a69d36996ec92749beb7d7934b19f6ef"
+  },
+  "not_packaged": [
+    "Dataset parquet/video contents",
+    "Base model weights",
+    "Training checkpoints and optimizer state",
+    "W&B account credentials",
+    "Complete local training logs and GPU profiler traces",
+    "Temporary conversion/profiling scripts and Python virtualenv contents"
+  ],
+  "documentation_validation": {
+    "local_links": 42,
+    "bash_blocks": 2,
+    "json_files": 8,
+    "source_fingerprints_checked": 25,
+    "formal_hydra_configuration": "64/8, 45000 steps, warmup 750, save 5000 and selected execution flags verified without training",
+    "sphinx_en_warnings": 0,
+    "sphinx_zh_warnings": 0,
+    "changed_file_hooks": "passed; Python lint/format skipped because additions are Markdown/JSON",
+    "training_started": false,
+    "limit": "Sphinx builds check the unchanged public documentation trees; Markdown archive paths and Bash syntax were checked separately. No training or model tests were rerun for this documentation-only addition."
+  }
+}

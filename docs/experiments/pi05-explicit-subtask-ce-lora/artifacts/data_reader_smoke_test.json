@@ -1,0 +1,208 @@
+{
+  "status": "passed",
+  "root": "/tmp/pi05-subtask-v21.eUzqZT/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks",
+  "reader": "LeRobotDataset",
+  "lerobot_version": "0.3.3",
+  "video_backend": "torchcodec",
+  "episodes_loaded": [
+    0,
+    198,
+    711
+  ],
+  "loaded_frames": 4618,
+  "decoded_frames": 30,
+  "samples": [
+    {
+      "loaded_index": 0,
+      "episode_index": 0,
+      "task": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.",
+      "subtask": "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned.",
+      "camera_shapes": {
+        "cam_high": [
+          3,
+          480,
+          640
+        ],
+        "cam_high_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist_extra": [
+          3,
+          480,
+          640
+        ]
+      }
+    },
+    {
+      "loaded_index": 500,
+      "episode_index": 0,
+      "task": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.",
+      "subtask": "Once the main wall is upright, keep the right gripper holding it and move the left gripper to securely grasp the top edge of the main wall.",
+      "camera_shapes": {
+        "cam_high": [
+          3,
+          480,
+          640
+        ],
+        "cam_high_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist_extra": [
+          3,
+          480,
+          640
+        ]
+      }
+    },
+    {
+      "loaded_index": 1565,
+      "episode_index": 198,
+      "task": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.",
+      "subtask": "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned.",
+      "camera_shapes": {
+        "cam_high": [
+          3,
+          480,
+          640
+        ],
+        "cam_high_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist_extra": [
+          3,
+          480,
+          640
+        ]
+      }
+    },
+    {
+      "loaded_index": 3174,
+      "episode_index": 711,
+      "task": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.",
+      "subtask": "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned.",
+      "camera_shapes": {
+        "cam_high": [
+          3,
+          480,
+          640
+        ],
+        "cam_high_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist_extra": [
+          3,
+          480,
+          640
+        ]
+      }
+    },
+    {
+      "loaded_index": 4617,
+      "episode_index": 711,
+      "task": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.",
+      "subtask": "Use the right gripper to grasp the formed box, move it from the center of the work area to the right side placement area on the table, and release the gripper once the box is stable.",
+      "camera_shapes": {
+        "cam_high": [
+          3,
+          480,
+          640
+        ],
+        "cam_high_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_left_wrist_extra": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist": [
+          3,
+          480,
+          640
+        ],
+        "cam_right_wrist_extra": [
+          3,
+          480,
+          640
+        ]
+      }
+    }
+  ],
+  "gpu_training": false,
+  "network_access": false
+}

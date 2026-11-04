@@ -1,0 +1,387 @@
+{
+  "archived_at_utc": "2026-11-04T04:56:49.219597+00:00",
+  "method": "Archive existing bounded-run metric/process summaries; no new training or profiling was performed while documenting.",
+  "hardware": "2 x NVIDIA RTX PRO 5000 Blackwell, 48935 MiB each",
+  "fixed_workload": {
+    "global_batch_size": 64,
+    "micro_batch_size_per_rank": 8,
+    "ranks": 2,
+    "accumulation_rounds_per_rank": 4,
+    "hl_records_per_update": 32,
+    "ll_action_windows_per_update": 32,
+    "warmup_steps": 750,
+    "scheduler_horizon": 45000,
+    "save_interval_for_tests": -1
+  },
+  "cases": [
+    {
+      "case": "no_recompute",
+      "source_directory": "logs/pi05_exec_no_recompute_20261102_211613",
+      "expandable_segments": false,
+      "process_summary": {
+        "exit_code": 0,
+        "elapsed_seconds": 180.4631470410386,
+        "timed_out": false,
+        "out_of_memory": false,
+        "weight_files": [],
+        "checkpoint_directories": [],
+        "sampled_peak_gpu_memory_mib": {
+          "0": 48249.0,
+          "1": 48343.0
+        }
+      },
+      "source_sha256": {
+        "process_summary.json": "581b14d307eb7db23d384463dbb98fe5bd541c3a9811ef0514e29a44ae52445b",
+        "metrics_summary.json": "fd8436a0fb1e97edb98a0f4489e6608f99994baca36bf3edd4c663eaf24a4ffd"
+      },
+      "metrics_summary": {
+        "updates": 20,
+        "configuration": {
+          "sharding_strategy": "full_shard",
+          "gradient_checkpointing": false,
+          "backward_prefetch": null
+        },
+        "compile": false,
+        "timing_window": [
+          6,
+          20
+        ],
+        "mean_seconds": 5.312292692732687,
+        "median_seconds": 5.292800801922567,
+        "baseline_same_window_mean_seconds": 6.419917904857235,
+        "time_reduction_percent": 17.252949781281977,
+        "all_metrics_finite": true,
+        "max_abs_diff_vs_baseline": {
+          "train/loss": 9.5367431640625e-07,
+          "train/subtask_ce": 4.76837158203125e-07,
+          "train/flow_loss": 0.0,
+          "train/grad_norm": 0.0,
+          "train/learning_rate": 0.0,
+          "train/hl_tokens_per_update": 0
+        }
+      }
+    },
+    {
+      "case": "shard_grad_op",
+      "source_directory": "logs/pi05_exec_shard_grad_op_20261102_221742",
+      "expandable_segments": false,
+      "process_summary": {
+        "exit_code": 0,
+        "elapsed_seconds": 188.7049828650197,
+        "timed_out": false,
+        "out_of_memory": false,
+        "weight_files": [],
+        "checkpoint_directories": [],
+        "sampled_peak_gpu_memory_mib": {
+          "0": 35787.0,
+          "1": 34033.0
+        }
+      },
+      "source_sha256": {
+        "process_summary.json": "e921e33f3b7fe429e0a1b3a146e16a9aebc290e1c2d089b2d5f3e01008dae081",
+        "metrics_summary.json": "cda5781ba2b7c29275e96b9a55568683e274dd7ad3a610caed731bf15c26da50"
+      },
+      "metrics_summary": {
+        "updates": 20,
+        "configuration": {
+          "sharding_strategy": "shard_grad_op",
+          "gradient_checkpointing": true,
+          "backward_prefetch": null
+        },
+        "compile": false,
+        "timing_window": [
+          6,
+          20
+        ],
+        "mean_seconds": 5.7852311476599425,
+        "median_seconds": 5.768598773982376,
+        "baseline_same_window_mean_seconds": 6.419917904857235,
+        "time_reduction_percent": 9.88621297971889,
+        "all_metrics_finite": true,
+        "max_abs_diff_vs_baseline": {
+          "train/loss": 9.5367431640625e-07,
+          "train/subtask_ce": 4.76837158203125e-07,
+          "train/flow_loss": 0.0,
+          "train/grad_norm": 0.0,
+          "train/learning_rate": 0.0,
+          "train/hl_tokens_per_update": 0
+        }
+      }
+    },
+    {
+      "case": "no_shard",
+      "source_directory": "logs/pi05_exec_no_shard_20261102_222236",
+      "expandable_segments": false,
+      "process_summary": {
+        "exit_code": 0,
+        "elapsed_seconds": 192.88367582508363,
+        "timed_out": false,
+        "out_of_memory": false,
+        "weight_files": [],
+        "checkpoint_directories": [],
+        "sampled_peak_gpu_memory_mib": {
+          "0": 41715.0,
+          "1": 40093.0
+        }
+      },
+      "source_sha256": {
+        "process_summary.json": "26664366ba70135b36fd80aacca44b7617870c7a4ac78d3541290c3d5265623b",
+        "metrics_summary.json": "850f9cb474005df1e03a28b973536ec64a8dba3c5614e6075d042366c7871036"
+      },
+      "metrics_summary": {
+        "updates": 20,
+        "configuration": {
+          "sharding_strategy": "no_shard",
+          "gradient_checkpointing": true,
+          "backward_prefetch": null
+        },
+        "compile": false,
+        "timing_window": [
+          6,
+          20
+        ],
+        "mean_seconds": 5.95358195353765,
+        "median_seconds": 5.9265082409838215,
+        "baseline_same_window_mean_seconds": 6.419917904857235,
+        "time_reduction_percent": 7.2638927511325395,
+        "all_metrics_finite": true,
+        "max_abs_diff_vs_baseline": {
+          "train/loss": 0.0030040740966796875,
+          "train/subtask_ce": 0.0020971298217773438,
+          "train/flow_loss": 9.262561798095703e-05,
+          "train/grad_norm": 0.004411935806274414,
+          "train/learning_rate": 0.0,
+          "train/hl_tokens_per_update": 0
+        }
+      }
+    },
+    {
+      "case": "no_recompute_compile",
+      "source_directory": "logs/pi05_exec_no_recompute_compile_20261102_222613",
+      "expandable_segments": false,
+      "process_summary": {
+        "exit_code": 0,
+        "elapsed_seconds": 186.52488088805694,
+        "timed_out": false,
+        "out_of_memory": false,
+        "weight_files": [],
+        "checkpoint_directories": [],
+        "sampled_peak_gpu_memory_mib": {
+          "0": 48305.0,
+          "1": 48177.0
+        }
+      },
+      "source_sha256": {
+        "process_summary.json": "3e935eadd36f66d60a2ba5918236ad7cd72ae41592acef5ec9677ef4a1f5aa82",
+        "metrics_summary.json": "8733a29881a016b1cc412788dc3e8bddfafc7df8430b3ad2b214e6ba91557e77"
+      },
+      "metrics_summary": {
+        "updates": 20,
+        "configuration": {
+          "sharding_strategy": "full_shard",
+          "gradient_checkpointing": false,
+          "backward_prefetch": null
+        },
+        "compile": true,
+        "timing_window": [
+          6,
+          20
+        ],
+        "mean_seconds": 5.070191813733739,
+        "median_seconds": 5.060313942958601,
+        "baseline_same_window_mean_seconds": 6.419917904857235,
+        "time_reduction_percent": 21.024039732693602,
+        "all_metrics_finite": true,
+        "max_abs_diff_vs_baseline": {
+          "train/loss": 0.007426261901855469,
+          "train/subtask_ce": 0.006870746612548828,
+          "train/flow_loss": 0.00017791986465454102,
+          "train/grad_norm": 0.017330408096313477,
+          "train/learning_rate": 0.0,
+          "train/hl_tokens_per_update": 0
+        }
+      }
+    },
+    {
+      "case": "shard_grad_op_no_recompute_compile_oom",
+      "source_directory": "logs/pi05_exec_shard_grad_op_no_recompute_compile_20261102_223343",
+      "expandable_segments": false,
+      "process_summary": {
+        "exit_code": 255,
+        "elapsed_seconds": 76.04411318001803,
+        "timed_out": false,
+        "out_of_memory": true,
+        "weight_files": [],
+        "checkpoint_directories": [],
+        "sampled_peak_gpu_memory_mib": {
+          "0": 35557.0,
+          "1": 24479.0
+        }
+      },
+      "source_sha256": {
+        "process_summary.json": "fdb8373559475aa84aa993ceab430152ddbca4a609acd29fbe746fb5defbf54b"
+      }
+    },
+    {
+      "case": "expandable_segments",
+      "source_directory": "logs/pi05_exec_compiled_allocator_profile_20261102_224321",
+      "expandable_segments": true,
+      "process_summary": {
+        "exit_code": 0,
+        "elapsed_seconds": 182.83785062504467,
+        "timed_out": false,
+        "out_of_memory": false,
+        "weight_files": [],
+        "checkpoint_directories": [],
+        "sampled_peak_gpu_memory_mib": {
+          "0": 48201.0,
+          "1": 47235.0
+        }
+      },
+      "source_sha256": {
+        "process_summary.json": "2ffb7f579405f82f2470cbf3df26da3196659217f3e78547b3424af3f36ca31e",
+        "metrics_summary.json": "ba29c1a1381230b2a6d1fe0b81e56e47fef606b53e144508f85029958ba89081"
+      },
+      "metrics_summary": {
+        "updates": 20,
+        "configuration": {
+          "sharding_strategy": "full_shard",
+          "gradient_checkpointing": false,
+          "backward_prefetch": null
+        },
+        "compile": true,
+        "timing_window": [
+          6,
+          20
+        ],
+        "mean_seconds": 5.0836653540609404,
+        "median_seconds": 5.079369984916411,
+        "baseline_same_window_mean_seconds": 6.419917904857235,
+        "time_reduction_percent": 20.814168819593494,
+        "all_metrics_finite": true,
+        "max_abs_diff_vs_baseline": {
+          "train/loss": 0.007426261901855469,
+          "train/subtask_ce": 0.006870746612548828,
+          "train/flow_loss": 0.00017791986465454102,
+          "train/grad_norm": 0.017330408096313477,
+          "train/learning_rate": 0.0,
+          "train/hl_tokens_per_update": 0
+        }
+      }
+    },
+    {
+      "case": "compiled_backward_prefetch",
+      "source_directory": "logs/pi05_exec_compiled_prefetch_profile_20261102_225015",
+      "expandable_segments": false,
+      "process_summary": {
+        "exit_code": 0,
+        "elapsed_seconds": 194.87646499997936,
+        "timed_out": false,
+        "out_of_memory": false,
+        "weight_files": [],
+        "checkpoint_directories": [],
+        "sampled_peak_gpu_memory_mib": {
+          "0": 47975.0,
+          "1": 48339.0
+        }
+      },
+      "source_sha256": {
+        "process_summary.json": "469537ca700764ecc72a091faf10616dd01891b2f3ccbbb41e6e919f405fed14",
+        "metrics_summary.json": "6c3864d79a8cbe1029ef76e33f54cef15a56eec76824024b5ded1b529d6ad1ef"
+      },
+      "metrics_summary": {
+        "updates": 20,
+        "configuration": {
+          "sharding_strategy": "full_shard",
+          "gradient_checkpointing": false,
+          "backward_prefetch": "pre"
+        },
+        "compile": true,
+        "timing_window": [
+          7,
+          20
+        ],
+        "timed_updates": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ],
+        "mean_seconds": 4.780303282355557,
+        "median_seconds": 4.779834125947673,
+        "baseline_same_window_mean_seconds": 6.431953996777468,
+        "time_reduction_percent": 25.678832828241926,
+        "all_metrics_finite": true,
+        "max_abs_diff_vs_baseline": {
+          "train/loss": 0.007426261901855469,
+          "train/subtask_ce": 0.006871223449707031,
+          "train/flow_loss": 0.00017791986465454102,
+          "train/grad_norm": 0.017330408096313477,
+          "train/learning_rate": 0.0,
+          "train/hl_tokens_per_update": 0
+        }
+      }
+    }
+  ],
+  "profile": {
+    "source": "logs/pi05_exec_compiled_prefetch_profile_20261102_225015/profile/timeline_summary.json",
+    "source_sha256": "5e900ef428a7c9f120bfad4883f9784f141fc1a286d8cbad32bf80c0a80a1bb0",
+    "profiled_optimizer_update": 6,
+    "method": "Union of GPU-kernel execution intervals per category and their overlap; CPU ranges and operator totals are not added.",
+    "ranks": {
+      "rank_0": {
+        "kernel_count": 35408,
+        "nccl_kernel_count": 984,
+        "gpu_span_seconds": 4.807780526855469,
+        "compute_kernel_union_seconds": 4.067852153808594,
+        "nccl_kernel_union_seconds": 1.6051949599609374,
+        "overlap_seconds": 1.1468908901367187,
+        "nccl_without_compute_seconds": 0.45830406982421873
+      },
+      "rank_1": {
+        "kernel_count": 33993,
+        "nccl_kernel_count": 984,
+        "gpu_span_seconds": 4.788462006347657,
+        "compute_kernel_union_seconds": 4.042775225097656,
+        "nccl_kernel_union_seconds": 2.1083929926757814,
+        "overlap_seconds": 1.5293343256835938,
+        "nccl_without_compute_seconds": 0.5790586669921876
+      }
+    }
+  },
+  "selection": "full_shard; gradient_checkpointing=false; backward_prefetch=pre; existing local GELU compilation=true; normal allocator; no extra vision grouping; no profiler in final 100-update test.",
+  "excluded_diagnostics": [
+    {
+      "source_directory": "logs/pi05_exec_baseline_profile_20261102_223658",
+      "reason": "Profiling hook did not intercept the cached Ray method; no valid GPU trace."
+    },
+    {
+      "source_directory": "logs/pi05_exec_compiled_allocator_profile_20261102_224321",
+      "reason": "Timing remains available above, but profiling hook produced no valid GPU trace."
+    },
+    {
+      "source_directory": "logs/pi05_exec_compiled_prefetch_vision_group_20261102_230947",
+      "reason": "An already-started extra wrapping run finished naturally around the request to stop exploring; not used in selecting the final recipe."
+    }
+  ],
+  "final_validation": "selected_execution_100_step_validation.json",
+  "limits": [
+    "The fastest known completed candidate was selected when exploration stopped; no global optimum claim.",
+    "20-update timing windows are 6-20 except the valid profiled candidate, which excludes update 6 and uses 7-20.",
+    "The final 100-update comparison uses 51-100 and no profiler; do not mix the short-run means to estimate isolated gains.",
+    "No checkpoint writes or robot evaluation were performed in these tuning runs.",
+    "NVML samples every 2 seconds can miss an OOM peak; sampled process occupancy is distinct from PyTorch allocated/reserved memory.",
+    "The GPU profile is one diagnostic update, not a multi-run timing or component-attribution benchmark.",
+    "Complete GPU traces and original commands/logs remain external local files; only their compact summaries are archived here."
+  ]
+}
