@@ -1,0 +1,24 @@
+defaults:
+  - _spiritai_pi05_rtc
+  - _self_
+
+runner:
+  logger:
+    experiment_name: spiritai_pi05_explicit_subtask_rtc
+
+rollout:
+  model:
+    model_path: /path/to/merged_pi05_subtask_lora
+    precision: bf16
+    is_lora: false
+    openpi:
+      hierarchical:
+        enabled: true
+        text_loss_weight: 1.0
+        flow_loss_weight: 10.0
+        max_subtask_tokens: 96
+        planning_interval: 3
+        ce_chunk_size: 32
+    openpi_data:
+      norm_stats_path: /path/to/merged_pi05_subtask_lora/norm_stats.json
+      zero_base_action_targets: true

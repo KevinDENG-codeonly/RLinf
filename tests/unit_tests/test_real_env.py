@@ -3522,6 +3522,9 @@ def test_shipped_realworld_task_overrides_contain_no_hardware_fields():
             for key, value in node.items():
                 if key == "override_cfg" and isinstance(value, dict):
                     overlap = hardware_fields.intersection(value)
+                    # SpiritAI connects to a standalone container, outside RobotDiscovery.
+                    if "spiritai" in path.stem:
+                        overlap.discard("robot_url")
                     if overlap:
                         offenders.append((str(path.relative_to(root)), sorted(overlap)))
                 check(value, path)
@@ -4868,3 +4871,245 @@ def test_spiritai_env_observes_and_controls_existing_container():
             env.close()
             env.close()
         assert server.following is False
+
+
+def test_spiritai_observation_mode_never_changes_robot_mode_or_sends_actions():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.envs.real.spiritai import SpiritaiCartesianEnv
+
+    with SpiritaiServer() as server:
+        server.execution_capabilities = {}
+        env = SpiritaiCartesianEnv(
+            {
+                "robot_url": server.url,
+                "image_height": 4,
+                "image_width": 5,
+                "source_hz": 1000,
+                "execution_enabled": False,
+                "enable_external_following": True,
+                "require_execution_capabilities": True,
+            }
+        )
+        try:
+            env.reset()
+            _, _, _, _, info = env.step(np.zeros(25, dtype=np.float32))
+            assert info["spiritai_control"]["execution_enabled"] is False
+        finally:
+            env.close()
+        assert not server.following
+        assert not server.commands
+        assert {message["type"] for message in server.messages} <= {
+            "get_obs",
+            "get_status",
+        }
+
+
+def test_spiritai_execution_requires_capabilities_before_following():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.envs.real.spiritai import SpiritaiCartesianEnv
+
+    with SpiritaiServer() as server:
+        server.execution_capabilities = {}
+        env = SpiritaiCartesianEnv(
+            {
+                "robot_url": server.url,
+                "image_height": 4,
+                "image_width": 5,
+                "require_execution_capabilities": True,
+                "enable_external_following": True,
+            }
+        )
+        with pytest.raises(RuntimeError, match="single_step_cartesian"):
+            env.reset()
+        assert not server.following
+        assert not server.commands
+        assert not env.client.connected
+
+
+def test_spiritai_hold_refreshes_measured_pose():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.envs.real.spiritai import SpiritaiCartesianEnv
+
+    with SpiritaiServer() as server:
+        env = SpiritaiCartesianEnv(
+            {
+                "robot_url": server.url,
+                "image_height": 4,
+                "image_width": 5,
+                "execution_enabled": False,
+            }
+        )
+        try:
+            env.reset()
+            server.obs["leftarm_state_cart_pos"][0] = 0.25
+            hold = env.get_hold_action()
+            assert hold[0] == 0.25
+            np.testing.assert_array_equal(hold[-3:], 0)
+            assert server.commands == []
+        finally:
+            env.close()
+
+
+def test_spiritai_limits_geodesic_rotation_and_translation_before_dispatch():
+    from robot_mocks.spiritai import SpiritaiServer
+    from scipy.spatial.transform import Rotation
+
+    from rlinf.envs.real.spiritai import SpiritaiCartesianEnv
+
+    with SpiritaiServer() as server:
+        for side in ("leftarm", "rightarm", "torso"):
+            server.obs[f"{side}_state_cart_pos"][3:] = [2.5, 1.2, 0.0]
+        for side in ("leftarm", "rightarm"):
+            server.obs[f"{side}_gripper_state_pos"][:] = 0.05
+        env = SpiritaiCartesianEnv(
+            {
+                "robot_url": server.url,
+                "image_height": 4,
+                "image_width": 5,
+                "source_hz": 100,
+                "enable_external_following": True,
+                "defer_external_following": True,
+                "require_execution_capabilities": True,
+                "zero_base_actions": True,
+                "gripper_min": 0.0,
+                "gripper_max": 0.1,
+            }
+        )
+        try:
+            obs, _ = env.reset()
+            assert not server.following
+            measured = obs["state"]["cartesian"]
+            target = measured + 1
+            target[[7, 15]] = [-1, 1]
+            _, _, _, _, info = env.step(target)
+            limited = info["spiritai_control"]["limited_action"]
+            assert server.following
+            for start, translation, angle in (
+                (0, 0.08, 0.35),
+                (8, 0.08, 0.35),
+                (16, 0.04, 0.2),
+            ):
+                assert (
+                    np.linalg.norm(
+                        limited[start : start + 3] - measured[start : start + 3]
+                    )
+                    <= translation / 100 + 1e-7
+                )
+                rotation = slice(start + 3, start + 6)
+                delta = Rotation.from_rotvec(
+                    measured[rotation]
+                ).inv() * Rotation.from_rotvec(limited[rotation])
+                assert delta.magnitude() <= angle / 100 + 2e-7
+            assert np.all((limited[[7, 15]] >= 0) & (limited[[7, 15]] <= 0.1))
+            np.testing.assert_array_equal(limited[-3:], 0)
+            np.testing.assert_array_equal(
+                server.commands[-1]["actions"][0], np.delete(limited, [6, 14])
+            )
+        finally:
+            env.close()
+        assert [message["type"] for message in server.messages][-3:] == [
+            "cancel_actions",
+            "get_status",
+            "set_external_following",
+        ]
+
+
+def test_rtc_session_uses_elapsed_time_and_never_repeats_an_exhausted_target():
+    from rlinf.data.schema.embodied_types import RTCActionResponse
+    from rlinf.workers.env.rtc_control import RTCSession
+
+    session = RTCSession(30, 1.2, 30, 10, 15, 8)
+    actions = torch.arange(50).reshape(1, 50, 1).expand(1, 50, 25).float()
+    warmup = session.begin({}, "warmup", 100.0)
+    session.accept(
+        RTCActionResponse(
+            actions=actions, session_id=warmup.session_id, chunk_id=warmup.chunk_id
+        ),
+        101.0,
+    )
+    assert session.actions is None
+    request = session.begin({}, "bootstrap", 102.0)
+    session.accept(
+        RTCActionResponse(
+            actions=actions, session_id=request.session_id, chunk_id=request.chunk_id
+        ),
+        103.0,
+    )
+    assert session.take_action(103.0)[0, 0] == 0
+    assert session.take_action(103.11)[0, 0] == 3
+    assert session.should_replan(103.41)
+    replan = session.begin({}, "replan", 103.41)
+    assert replan.executed_horizon == 12
+    with pytest.raises(RuntimeError, match="one in-flight"):
+        session.begin({}, "replan", 103.42)
+    session.accept(
+        RTCActionResponse(
+            actions=actions + 100,
+            session_id=replan.session_id,
+            chunk_id=replan.chunk_id,
+        ),
+        103.72,
+    )
+    assert session.take_action(103.72)[0, 0] == 109
+    assert session.take_action(106.0) is None
+
+
+@pytest.mark.parametrize(
+    "failure", ["session", "chunk", "deadline", "error", "nonfinite"]
+)
+def test_rtc_session_rejects_stale_failed_and_late_responses(failure):
+    from rlinf.data.schema.embodied_types import RTCActionResponse
+    from rlinf.workers.env.rtc_control import RTCSession
+
+    session = RTCSession(30, 1.2, 30, 10, 15, 8)
+    request = session.begin({}, "bootstrap", 10.0)
+    reply = RTCActionResponse(
+        actions=torch.zeros(1, 50, 25),
+        session_id=request.session_id,
+        chunk_id=request.chunk_id,
+    )
+    now = 10.5
+    if failure == "session":
+        reply.session_id = "previous_episode"
+    elif failure == "chunk":
+        reply.chunk_id += 1
+    elif failure == "deadline":
+        now = 40.01
+    elif failure == "error":
+        reply.error = "planner did not generate EOS"
+    else:
+        reply.actions[0, 0, 0] = float("nan")
+    with pytest.raises((RuntimeError, TimeoutError, ValueError)):
+        session.accept(reply, now)
+    assert session.actions is None
+
+
+def test_spiritai_container_registration_preserves_local_ros_processes():
+    code = textwrap.dedent("""
+        import psutil
+        from omegaconf import OmegaConf
+        from rlinf.envs import get_env_cls, SupportedEnvType
+
+        def forbidden_process_scan(*args, **kwargs):
+            raise AssertionError("local ROS setup was requested")
+
+        psutil.process_iter = forbidden_process_scan
+        cfg = OmegaConf.load("examples/embodiment/config/env/realworld_spiritai_cartesian.yaml")
+        cls = get_env_cls(SupportedEnvType.REAL, cfg)
+        env = cls(cfg, num_envs=1, seed_offset=0, total_num_processes=1, worker_info=None)
+        env.close()
+        from rlinf.envs.real import load_tasks
+        try:
+            load_tasks()
+        except AssertionError as error:
+            assert str(error) == "local ROS setup was requested"
+        else:
+            raise AssertionError("default local setup must remain available after remote registration")
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=_ROOT, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

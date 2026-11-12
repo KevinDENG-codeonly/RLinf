@@ -1855,11 +1855,29 @@ class RTCRequest:
     executed_horizon: int = 0
     predicted_delay_steps: int = 0
     chunk_id: int = 0
+    session_id: str = ""
 
     def __post_init__(self):
         # Keep Ray channel payloads on CPU so the control node never receives
         # CUDA tensors from the rollout node.
         self.obs = put_tensor_device(self.obs, "cpu")
+
+    def validate_response(self, response: "RTCActionResponse") -> None:
+        """Reject a different session/request or a failed inference."""
+        if (response.session_id, response.chunk_id) != (
+            self.session_id,
+            self.chunk_id,
+        ):
+            raise RuntimeError(
+                f"Expected RTC response {(self.session_id, self.chunk_id)}, "
+                f"got {(response.session_id, response.chunk_id)}."
+            )
+        if response.error is not None:
+            raise RuntimeError(f"RTC policy inference failed: {response.error}")
+        if response.actions is None or not torch.isfinite(response.actions).all():
+            raise ValueError(
+                "Expected a finite RTC action chunk, got missing/nonfinite actions."
+            )
 
 
 @dataclass(kw_only=True)
@@ -1870,6 +1888,9 @@ class RTCActionResponse:
     model_actions: torch.Tensor | None = None
     chunk_id: int = 0
     guidance_applied: bool = False
+    session_id: str = ""
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
 
     def __post_init__(self):
         # Actions are executed by the env worker, while model_actions are kept

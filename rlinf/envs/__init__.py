@@ -146,7 +146,10 @@ def get_env_cls(env_type: str, env_cfg=None):
 
         return Robocasa365Env
     elif env_type == SupportedEnvType.REAL:
-        from rlinf.envs.real import RealWorldEnv
+        if env_cfg is not None and not env_cfg.get("runtime_setup", True):
+            from rlinf.envs.real.env import RealWorldEnv
+        else:
+            from rlinf.envs.real import RealWorldEnv
 
         return RealWorldEnv
     elif env_type == SupportedEnvType.WORLD_MODEL:

@@ -70,6 +70,12 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> Any:
     )
 
     model_path = pathlib.Path(cfg.model_path).expanduser()
+    if bool(OmegaConf.select(model_cfg, "validate_deployment", default=False)):
+        from rlinf.models.embodiment.openpi.checkpoint import (
+            validate_hierarchical_deployment,
+        )
+
+        validate_hierarchical_deployment(cfg)
     safetensors_path = resolve_model_safetensors(model_path)
     full_weights_path = resolve_full_weights(model_path)
     if safetensors_path is None and full_weights_path is None:

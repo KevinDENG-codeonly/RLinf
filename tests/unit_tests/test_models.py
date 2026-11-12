@@ -1888,3 +1888,46 @@ def test_openpi_subtask_planning_state_requires_reset_for_identical_next_episode
     assert state.should_plan(["fold another box"], 2)
     state.reset()
     assert state.should_plan(["fold box"], 2)
+
+
+def test_spiritai_deployment_rejects_changed_training_shape_and_stats(
+    tmp_path, monkeypatch
+):
+    import json
+    from pathlib import Path
+
+    from hydra import compose, initialize_config_dir
+    from omegaconf import OmegaConf
+
+    from rlinf.models.embodiment.openpi.checkpoint import (
+        validate_hierarchical_deployment,
+    )
+
+    root = Path(__file__).resolve().parents[2]
+    monkeypatch.setenv("EMBODIED_PATH", str(root / "examples/embodiment"))
+    with initialize_config_dir(
+        version_base="1.1", config_dir=str(root / "evaluations/realworld")
+    ):
+        cfg = compose(config_name="realworld_spiritai_eval_pi05_subtask_deploy")
+    assert cfg.env.eval.override_cfg.execution_enabled is False
+    assert cfg.env.eval.auto_reset is False
+    assert cfg.env.eval.keyboard_reward_wrapper is None
+    model_cfg = cfg.rollout.model
+    model_cfg.model_path = str(tmp_path)
+    model_cfg.openpi_data.norm_stats_path = str(tmp_path / "norm_stats.json")
+    metadata = {
+        "text_template_version": 1,
+        "model": OmegaConf.to_container(model_cfg, resolve=True),
+        "normalization": {"norm_stats": {"state": {"mean": [1.0]}}},
+    }
+    (tmp_path / "openpi_training.json").write_text(json.dumps(metadata))
+    stats = tmp_path / "norm_stats.json"
+    stats.write_text(json.dumps(metadata["normalization"]))
+    validate_hierarchical_deployment(model_cfg)
+    model_cfg.openpi.max_token_len = 128
+    with pytest.raises(ValueError, match="max_token_len=256"):
+        validate_hierarchical_deployment(model_cfg)
+    model_cfg.openpi.max_token_len = 256
+    stats.write_text(json.dumps({"norm_stats": {"state": {"mean": [2.0]}}}))
+    with pytest.raises(ValueError, match="normalization identical"):
+        validate_hierarchical_deployment(model_cfg)

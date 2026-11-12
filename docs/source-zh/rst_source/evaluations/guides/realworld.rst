@@ -392,6 +392,33 @@ client 使用已有的 MessagePack NumPy 协议：``hello``、``get_obs``、``ge
 
 该命令连接真实机器人。reset 读取当前位置，请提前将机器人置于任务起始构型。默认 keyboard wrapper 等待按下 ``a`` 开始运行，按下 ``c`` 标记成功，按下 ``b`` 标记失败。自动选择无法找到所需键盘时，设置 ``env.eval.keyboard_device``。构造环境不会连接或移动机器人；评测 reset 才建立连接，并按配置启用 external following。
 
-适配层基于测量状态限制机械臂和躯干各轴的平移、旋转速度，以及夹爪速度和底盘速度。根据机器人与任务，在 ``env.eval.override_cfg`` 中配置这些限制。示例针对 FoldBox 将底盘指令置零。``source_hz`` 应与采集数据频率匹配，默认 30 Hz。请求包含发送和接收的总超时，传输失败后会关闭连接，避免复用旧响应。关闭活动环境时，会释放 external following 并关闭连接。
+适配层基于测量状态限制机械臂和躯干的平移速度、单 tick 的 SO(3) 旋转角，以及夹爪速度和底盘速度。根据机器人与任务，在 ``env.eval.override_cfg`` 中配置这些限制。示例针对 FoldBox 将底盘指令置零。``source_hz`` 应与采集数据频率匹配，默认 30 Hz。请求包含发送和接收的总超时，传输失败后会关闭连接，避免复用旧响应。关闭活动环境时，会释放 external following 并关闭连接。
 
 加载 checkpoint 时，保持训练时的 state token 设置、token 上限、相机顺序和归一化统计。部署采用 RLinf 的 ``approx`` RTC overlap guidance，不要求训练时加入动作前缀条件。延迟和任务成功率需要在真机上测量。共用 RTC 参数与指标见 :doc:`../../guides/rtc`。
+
+显式 Subtask Checkpoint
+~~~~~~~~~~~~~~~~~~~~~~~
+
+使用 ``realworld_spiritai_eval_pi05_subtask_deploy``，先根据 overall 指令和当前观测生成 subtask，再根据 subtask 和观测生成动作。完整的合并 policy 运行在一张 GPU 上；同一工作站的 env worker 负责机器人连接，机器人 container 负责底层执行。SpiritAI env 设置 ``runtime_setup=false``，注册任务时跳过本机 ROS 进程清理。
+
+在合并 checkpoint 目录中同时保留 ``full_weights.pt``、``openpi_training.json`` 和 ``norm_stats.json``。部署会根据训练 metadata 核对模型维度、文本与 state 设置以及 normalization。指定路径，先启动默认的观测模式：
+
+.. code-block:: bash
+
+   source .venv/bin/activate
+   CUDA_VISIBLE_DEVICES=0 bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_subtask_deploy \
+     rollout.model.model_path=/path/to/merged_pi05_subtask_lora \
+     rollout.model.openpi_data.norm_stats_path=/path/to/merged_pi05_subtask_lora/norm_stats.json \
+     env.eval.override_cfg.robot_url=ws://ROBOT_HOST:8766
+
+该命令连接 container，并在 ``execution_enabled=false`` 下运行 policy。client 读取观测和状态，保持 following mode 和动作下发不变。profile 使用三路 320×240 RGB 图像、25D Cartesian state、30 Hz 控制、50 行 action chunk 和 10 次 Euler integration。overall 应与训练任务一致，不输入固定的当前 subtask。``planning_interval=3`` 表示每三个动作请求刷新高层规划。
+
+开启执行前，确认部署中的 container 将 ``execution_capabilities.single_step_cartesian``、``tracked_completion`` 和 ``cancel_actions`` 声明为 true，并实现对应行为。单行动作必须绕过多点插值；busy 应跟踪 SDK 的实际执行完成状态，错误通过 ``get_status.execution_error`` 暴露；``cancel_actions`` 应在后续 dispatch 停止后才回复确认。请求回复需携带对应的 ``request_id``。
+
+核对图像方向、位姿参考系和夹爪单位后，在启动命令中追加 ``env.eval.override_cfg.execution_enabled=true``。该 profile 预热后直接开始执行，不使用键盘启动 gate。following mode 在第一条有效动作下发前开启，reset 只读取测量位姿。Cartesian 旋转按 rotation vector 处理，平移和旋转速度基于测量状态限幅，base 指令固定为零。示例夹爪 command 范围 ``[0, 0.1]`` 来自示范数据，仍需验证硬件契约。
+
+warmup 在 bootstrap 前覆盖普通 Flow 和 ``approx`` RTC 采样。``bootstrap_timeout_s=30`` 限制 warmup 和 bootstrap，``request_timeout_s=1.2`` 限制 replan；后者需要根据实际 GPU 和网络延迟校验。env worker 同时只保留一个推理请求，拒绝迟到或错配的回复，并按本地 monotonic time 推进动作索引。已经成功执行过控制 tick 时，异常会触发 ``stop_hold_steps=2`` 次实测位姿保持，关闭连接并报告 ``rtc_aborted=1``；runner 等待 worker 收尾后以错误状态退出。container 取消会停止后续 SDK 下发，底层控制器仍可能保持最后一个目标。
+
+warmup 或 bootstrap 失败时关闭连接，不开启 following 或下发 hold 指令。
+
+通过 ``<log_path>/<experiment_name>/rtc-env-0.jsonl`` 查看 session/chunk 标识、生成文本、EOS、延迟、预测与限幅动作、测量状态、保持尝试及清理结果。profile 保留 W&B 日志。录制观测与 loopback container 测试验证接口行为，物理时序和任务成功率需要另行测量。

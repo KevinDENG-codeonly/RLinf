@@ -19,8 +19,10 @@ step-by-step while the next action chunk is requested asynchronously from the
 rollout worker, hiding inference latency behind control execution.
 """
 
+import json
 import time
 from collections import defaultdict, deque
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -173,6 +175,7 @@ class RTCEnvWorker(EnvWorker):
         )
 
         if isinstance(infos, dict):
+            self._rtc_control_info = infos.get("spiritai_control", {})
             if dones.any():
                 if "episode" in infos:
                     for key in infos["episode"]:
@@ -229,6 +232,8 @@ class RTCEnvWorker(EnvWorker):
                 worker.
         """
         rtc_cfg = self.cfg.runner.get("rtc", {})
+        if float(rtc_cfg.get("request_timeout_s", 0.0)) > 0:
+            return self._evaluate_bounded(input_channel, rollout_channel)
         min_exec_horizon = int(rtc_cfg.get("min_exec_horizon", 2))
         initial_delay_steps = int(rtc_cfg.get("initial_delay_steps", 1))
         delay_buffer_size = int(rtc_cfg.get("delay_buffer_size", 8))
@@ -385,3 +390,188 @@ class RTCEnvWorker(EnvWorker):
             eval_metrics[key] = torch.cat(value, dim=0).contiguous().cpu()
 
         return eval_metrics
+
+    def _evaluate_bounded(self, input_channel: Channel, rollout_channel: Channel):
+        from rlinf.workers.env.rtc_control import RTCSession
+
+        if SupportedEnvType(self.cfg.env.eval.env_type) is not SupportedEnvType.REAL:
+            raise ValueError(
+                "Expected a real env for bounded wall-clock RTC evaluation."
+            )
+        cfg = self.cfg.runner.rtc
+        env = self.eval_env_list[0]
+        source_hz = float(self.cfg.env.eval.override_cfg.source_hz)
+        hold_steps = int(cfg.get("stop_hold_steps", 2))
+        warmup_requests = int(cfg.get("warmup_requests", 2))
+        if hold_steps < 0 or warmup_requests < 0:
+            raise ValueError(
+                "Expected nonnegative stop_hold_steps and warmup_requests."
+            )
+        log_dir = (
+            Path(self.cfg.runner.logger.log_path)
+            / self.cfg.runner.logger.experiment_name
+        )
+        log_dir.mkdir(parents=True, exist_ok=True)
+        metrics = defaultdict(list)
+        metrics["rtc_aborted"].append(torch.zeros(1))
+        session = None
+        work = None
+        have_executed_action = False
+
+        def json_value(value):
+            if isinstance(value, torch.Tensor):
+                return value.detach().cpu().tolist()
+            if isinstance(value, (np.ndarray, np.generic)):
+                return value.tolist()
+            raise TypeError(
+                f"Expected JSON-serializable RTC diagnostics, got {type(value)}."
+            )
+
+        with (log_dir / f"rtc-env-{self._rank}.jsonl").open("a") as trace:
+
+            def record(event, **values):
+                trace.write(
+                    json.dumps(
+                        {
+                            "event": event,
+                            "monotonic_s": time.monotonic(),
+                            "session_id": session.session_id if session else None,
+                            **values,
+                        },
+                        default=json_value,
+                    )
+                    + "\n"
+                )
+                trace.flush()
+
+            def send(obs, kind):
+                request = session.begin(self._copy_rtc_obs(obs), kind, time.monotonic())
+                self.send_rtc_request(rollout_channel, request)
+                record(
+                    "request",
+                    request_type=kind,
+                    chunk_id=request.chunk_id,
+                    executed_horizon=request.executed_horizon,
+                    predicted_delay_steps=request.predicted_delay_steps,
+                )
+                return self.recv_rtc_response(input_channel, async_op=True)
+
+            def receive(handle):
+                while not handle.done():
+                    session.check_deadline(time.monotonic())
+                    time.sleep(0.002)
+                response = handle.wait()
+                if response.error is None:
+                    session.pending.validate_response(response)
+                    response.actions = torch.as_tensor(
+                        self._prepare_rtc_actions(response), device="cpu"
+                    )
+                session.accept(response, time.monotonic())
+                record(
+                    "response",
+                    chunk_id=response.chunk_id,
+                    guidance_applied=response.guidance_applied,
+                    request_seconds=time.monotonic() - session.requested_at,
+                    **response.diagnostics,
+                )
+                return response
+
+            try:
+                for epoch in range(self.eval_rollout_epoch):
+                    have_executed_action = False
+                    env.is_start = True
+                    obs, _ = env.reset()
+                    session = RTCSession(
+                        source_hz,
+                        float(cfg.request_timeout_s),
+                        float(cfg.bootstrap_timeout_s),
+                        int(cfg.min_exec_horizon),
+                        int(cfg.initial_delay_steps),
+                        int(cfg.delay_buffer_size),
+                    )
+                    if epoch == 0:
+                        for _ in range(warmup_requests):
+                            receive(send(obs, "warmup"))
+                        if warmup_requests:
+                            obs, _ = env.reset()
+                    receive(send(obs, "bootstrap"))
+                    episode_success = False
+                    done = False
+                    for step in range(self.cfg.env.eval.max_steps_per_rollout_epoch):
+                        now = time.monotonic()
+                        session.check_deadline(now)
+                        if work is not None and work.done():
+                            receive(work)
+                            work = None
+                        if session.should_replan(time.monotonic()):
+                            work = send(obs, "replan")
+                        action_time = time.monotonic()
+                        index = session.action_index(action_time)
+                        action = session.take_action(action_time)
+                        if action is None:
+                            raise TimeoutError(
+                                "RTC action chunk exhausted before a timely replacement."
+                            )
+                        output, info = self._evaluate_rtc_action(action, 0)
+                        have_executed_action = True
+                        obs = output.obs
+                        record(
+                            "step",
+                            step=step,
+                            action_index=index,
+                            chunk_id=session.response.chunk_id,
+                            control=getattr(self, "_rtc_control_info", {}),
+                        )
+                        for key, value in info.items():
+                            metrics[key].append(value)
+                        episode_success |= self._success_from_info(info)
+                        done = output.dones is not None and bool(output.dones.any())
+                        if done:
+                            break
+                    record(
+                        "episode_end",
+                        steps=step + 1,
+                        success=episode_success,
+                        done=done,
+                    )
+                    if work is not None:
+                        receive(work)
+                        work = None
+                    self.finish_rollout(mode="eval")
+                    if (
+                        self.cfg.runner.get("stop_eval_on_keyboard_success", False)
+                        and episode_success
+                    ):
+                        break
+            except Exception as exc:
+                import traceback
+
+                record("abort", error=f"{type(exc).__name__}: {exc}")
+                self.log_error(f"RTC episode aborted: {traceback.format_exc()}")
+                metrics["rtc_aborted"] = [torch.ones(1)]
+                if have_executed_action:
+                    for _ in range(hold_steps):
+                        try:
+                            self._evaluate_rtc_action(env.get_hold_actions(), 0)
+                            record(
+                                "hold", control=getattr(self, "_rtc_control_info", {})
+                            )
+                        except Exception as hold_error:
+                            self.log_warning(f"RTC hold failed: {hold_error}")
+                            break
+            finally:
+                try:
+                    env.close()
+                    record("closed")
+                except Exception as exc:
+                    metrics["rtc_aborted"] = [torch.ones(1)]
+                    record("close_error", error=f"{type(exc).__name__}: {exc}")
+                    self.log_error(f"RTC env cleanup failed: {exc}")
+                finally:
+                    self.send_rtc_request(
+                        rollout_channel, RTCRequest(obs={}, request_type="stop")
+                    )
+        return {
+            key: torch.cat(values, dim=0).contiguous().cpu()
+            for key, values in metrics.items()
+        }

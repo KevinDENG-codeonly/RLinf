@@ -32,6 +32,14 @@ class SpiritaiServer:
         self.following = False
         self.reject_commands = False
         self.stall_observations = False
+        self.execution_error = None
+        self.bad_response_id = False
+        self.fail_after_ack = False
+        self.execution_capabilities = {
+            "single_step_cartesian": True,
+            "tracked_completion": True,
+            "cancel_actions": True,
+        }
         self.stopped = threading.Event()
         self.obs = {
             key: np.full(dim, index / 10, dtype=np.float32)
@@ -86,6 +94,7 @@ class SpiritaiServer:
                         "cart_dim": 23,
                         "accepted_cart_dims": [14, 20, 23],
                         "max_chunk": 60,
+                        "execution_capabilities": self.execution_capabilities,
                     },
                 },
                 use_bin_type=True,
@@ -101,7 +110,11 @@ class SpiritaiServer:
                     return
                 response = {"type": "obs", "obs": self.obs, "images": self.images}
             elif kind == "get_status":
-                response = {"type": "status", "busy": False}
+                response = {
+                    "type": "status",
+                    "busy": False,
+                    "execution_error": self.execution_error,
+                }
             elif kind == "set_external_following":
                 self.following = request["enabled"]
                 response = {
@@ -112,8 +125,15 @@ class SpiritaiServer:
             elif kind == "send_command":
                 self.commands.append(request)
                 response = {"type": "ack", "accepted": not self.reject_commands}
+                if self.fail_after_ack:
+                    self.execution_error = "SDK dispatch failed after acknowledgement"
+            elif kind == "cancel_actions":
+                response = {"type": "cancelled", "accepted": True}
             else:
                 response = {"type": "error", "message": kind}
+            response["request_id"] = request.get("request_id")
+            if self.bad_response_id:
+                response["request_id"] += 1
             connection.send(
                 msgpack.packb(response, default=self._encode, use_bin_type=True)
             )

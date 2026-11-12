@@ -93,6 +93,7 @@ class SpiritaiClient:
         self._runner: asyncio.Runner | None = None
         self._executor: ThreadPoolExecutor | None = None
         self._ws: Any = None
+        self._request_id = 0
 
     async def _receive(self) -> dict[str, Any]:
         import msgpack
@@ -158,12 +159,34 @@ class SpiritaiClient:
         if self._ws is None or self._runner is None:
             raise RuntimeError("Expected a connected SpiritAI client before request().")
         timeout = self.timeout_s if timeout_s is None else timeout_s
+        if not np.isfinite(timeout) or timeout <= 0:
+            raise ValueError(
+                f"Expected positive finite request timeout, got {timeout}."
+            )
+        self._request_id += 1
+        message = {**message, "request_id": self._request_id}
+        expected_type = {
+            "get_obs": "obs",
+            "get_status": "status",
+            "send_command": "ack",
+            "set_external_following": "external_following",
+            "cancel_actions": "cancelled",
+        }[message["type"]]
 
         async def exchange() -> dict[str, Any]:
             await self._ws.send(
                 msgpack.packb(message, default=_encode_numpy, use_bin_type=True)
             )
-            return await self._receive()
+            response = await self._receive()
+            if (
+                response.get("request_id") != message["request_id"]
+                or response.get("type") != expected_type
+            ):
+                raise RuntimeError(
+                    f"Expected {expected_type} response to request {message['request_id']}, "
+                    f"got {response!r}."
+                )
+            return response
 
         try:
             return self._executor.submit(
@@ -185,6 +208,25 @@ class SpiritaiClient:
             raise RuntimeError(f"Expected robot_server obs, got {message!r}.")
         return message["obs"], message["images"]
 
+    def validate_execution_capabilities(self) -> None:
+        """Require single-row execution, tracked completion and cancellation."""
+        capabilities = self.metadata.get("execution_capabilities", {})
+        required = ("single_step_cartesian", "tracked_completion", "cancel_actions")
+        missing = [key for key in required if capabilities.get(key) is not True]
+        if missing:
+            raise RuntimeError(
+                f"Expected robot_server execution capabilities {required}, missing {missing}. "
+                "Use observation-only mode until the deployed container is compatible."
+            )
+
+    def cancel_actions(self) -> None:
+        """Cancel dispatch and wait for the container's completion acknowledgement."""
+        response = self.request({"type": "cancel_actions"})
+        if not response.get("accepted", False):
+            raise RuntimeError(
+                f"Expected accepted robot cancellation, got {response!r}."
+            )
+
     def wait_idle(self) -> None:
         """Wait at most timeout_s for the accepted command to finish."""
         deadline = time.monotonic() + self.timeout_s
@@ -194,7 +236,12 @@ class SpiritaiClient:
                 raise TimeoutError(
                     "Expected idle SpiritAI robot before the command deadline."
                 )
-            if not self.request({"type": "get_status"}, timeout_s=remaining)["busy"]:
+            status = self.request({"type": "get_status"}, timeout_s=remaining)
+            if status.get("execution_error"):
+                raise RuntimeError(
+                    f"Robot action execution failed: {status['execution_error']}"
+                )
+            if not status["busy"]:
                 return
             time.sleep(min(0.001, remaining))
 

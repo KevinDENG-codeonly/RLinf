@@ -35,6 +35,8 @@
 
 ## 保留的研究边界
 
+真机推理的单 GPU 配置、启动命令、container 兼容补丁和验证记录见[部署工程记录](deployment.md)。
+
 本轮检验的是 `π0.5 + LoRA + 显式分层联合微调` 这个方向。原有 LoRA baseline 在训练时输入 overall + 当前 subtask，推理时只输入 overall；实验 C 将当前 subtask 变成模型需要生成的中间结果。已有 [flow-only full 实验](../pi05-flow-only-full/README.md)提供训练配置和工程对照，但这些方向同时改变了训练目标、可训练参数或动作样本曝光量，不能直接分离单个因素的因果效果。
 
 Base checkpoint 的既有规划能力、严格变量分离，以及额外 CE 是否改善动作能力，保留为待验证问题。Full Fine-Tuning、KI、FAST Action CE 和 Implicit HL 属于后续讨论范围；FineART 与 `Ke-Wang1017/openpi_subtask` 只提供工程参考。下次复用这份备份时，先恢复当前实现和配置，再决定是否扩展实验。

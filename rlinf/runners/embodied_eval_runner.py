@@ -76,6 +76,17 @@ class EmbodiedEvalRunner:
         env_results = env_handle.wait()
         env_decoupled_mode = self.cfg.runner.get("enable_decoupled_mode", False)
         if not env_decoupled_mode:
+            shutdown_timeout = float(
+                self.cfg.runner.get("rtc", {}).get("shutdown_timeout_s", 0)
+            )
+            if shutdown_timeout > 0:
+                deadline = time.monotonic() + shutdown_timeout
+                while not rollout_handle.done():
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(
+                            f"RTC rollout did not stop within {shutdown_timeout}s after env completion."
+                        )
+                    time.sleep(0.01)
             rollout_results = rollout_handle.wait()
             rollout_metrics_list = [
                 results for results in rollout_results if results is not None
@@ -105,3 +116,8 @@ class EmbodiedEvalRunner:
         )
 
         self.metric_logger.finish()
+        if float(eval_metrics.get("eval/rtc_aborted", 0.0)) > 0:
+            raise RuntimeError(
+                "RTC evaluation aborted; inspect rtc-env-<rank>.jsonl for the failed "
+                "request, hold attempts and connection cleanup."
+            )

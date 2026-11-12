@@ -1,0 +1,24 @@
+{
+  "files": {
+    "mozrobot.py": {
+      "source_sha256": "464e3d8f1db9f2c0374cbd88a4fda2ae79767aef7389a927c08fee50e3ffce17",
+      "patched_sha256": "de7f93ef36f80b47984000fb33d2ac65eda427bdba527dbc7009c270aef9a7d8"
+    },
+    "server.py": {
+      "source_sha256": "2fca22e0cffe72773858049f2ece43627faf94394612641c60f35255c6da0c7f",
+      "patched_sha256": "5fc600426233c4b767016cf10596cb9b3189093d19b77dbeb6fa6babe656f2f8"
+    }
+  },
+  "applied_to_robot": false,
+  "source_directory": "/home/deng/Documents/codebase/robot_server_code/robot_server",
+  "tests": [
+    "single-row resampling",
+    "SDK completion tracking past predicted finish",
+    "cooperative cancel of a 50-row chunk",
+    "post-ACK dispatch error propagation"
+  ],
+  "limits": [
+    "Cancellation stops subsequent SDK sends; it is not a motor emergency stop.",
+    "Actual robot SDK and deployed container version remain unverified."
+  ]
+}

@@ -103,7 +103,7 @@ class RealWorldEnv(gym.Env):
         # import that registers the task ids.
         from rlinf.envs.real import load_tasks
 
-        load_tasks()
+        load_tasks(setup_runtime=bool(self.cfg.get("runtime_setup", True)))
         env = gym.make(
             id=self.cfg.init_params.id,
             override_cfg=override_cfg,

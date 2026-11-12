@@ -24,6 +24,57 @@ from rlinf.utils.logging import get_logger
 
 logger = get_logger()
 
+
+def validate_hierarchical_deployment(cfg: Any) -> dict[str, Any]:
+    """Check deployment shape, text template and stats against training metadata."""
+    from omegaconf import OmegaConf
+
+    root = pathlib.Path(cfg.model_path).expanduser()
+    if root.is_file():
+        root = root.parent
+    metadata = json.loads((root / "openpi_training.json").read_text())
+    if cfg.is_lora or metadata.get("text_template_version") != 1:
+        raise ValueError(
+            "Expected merged deployment weights and text_template_version=1."
+        )
+    trained = metadata["model"]
+    fields = (
+        "num_action_chunks",
+        "action_dim",
+        "openpi.config_name",
+        "openpi.num_images_in_input",
+        "openpi.action_env_dim",
+        "openpi.model_action_dim",
+        "openpi.max_token_len",
+        "openpi.discrete_state_input",
+        "openpi.paligemma_variant",
+        "openpi.action_expert_variant",
+        "openpi.hierarchical.enabled",
+        "openpi.hierarchical.max_subtask_tokens",
+        "openpi_data.zero_base_action_targets",
+    )
+    trained_cfg = OmegaConf.create(trained)
+    for name in fields:
+        expected = OmegaConf.select(trained_cfg, name)
+        actual = OmegaConf.select(cfg, name)
+        if expected is None or actual != expected:
+            raise ValueError(
+                f"Expected deployment {name}={expected!r}, got {actual!r}."
+            )
+    if not cfg.openpi.hierarchical.enabled:
+        raise ValueError(
+            "Expected explicit subtask generation for hierarchical deployment."
+        )
+    stats = json.loads(
+        pathlib.Path(cfg.openpi_data.norm_stats_path).expanduser().read_text()
+    )
+    if stats != metadata["normalization"]:
+        raise ValueError(
+            "Expected deployment normalization identical to checkpoint training metadata."
+        )
+    return metadata
+
+
 FULL_WEIGHTS_CANDIDATES = (
     "actor/model_state_dict/full_weights.pt",
     "model_state_dict/full_weights.pt",

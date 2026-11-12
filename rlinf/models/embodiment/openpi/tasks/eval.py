@@ -131,6 +131,7 @@ class Pi0Eval(EnvIO, Pi0):
         rng: torch.Generator | None = None,
         rtc_context=None,
         subtask_state: SubtaskPlanningState | None = None,
+        require_subtask_eos: bool = False,
         **kwargs,
     ) -> tuple[torch.Tensor, dict[str, Any]]:
         del compute_values, kwargs
@@ -151,6 +152,11 @@ class Pi0Eval(EnvIO, Pi0):
             changed = False
             if planned:
                 subtasks, planning_info = self.predict_subtask_batch(env_obs)
+                if require_subtask_eos and not all(planning_info["subtask_eos"]):
+                    raise RuntimeError(
+                        "Expected EOS-terminated subtasks before action generation; "
+                        "the planner reached its token budget."
+                    )
                 changed = state.subtasks is not None and subtasks != state.subtasks
                 state.update(instructions, subtasks)
             if changed:

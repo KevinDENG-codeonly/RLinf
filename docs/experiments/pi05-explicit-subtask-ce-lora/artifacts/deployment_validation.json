@@ -1,0 +1,300 @@
+{
+  "completed_at_utc": "2026-11-11T04:23:20.699376+00:00",
+  "branch": "feature/pi05-flow-explict-subtask-ce-lora",
+  "base_commit": "70fdb92f9b3820c22518385fb4c807bcce5da09a",
+  "worktree_committed": false,
+  "real_robot_connected": false,
+  "training_started": false,
+  "checkpoint_step": 45000,
+  "checkpoint_path": "/home/deng/Documents/codebase/RLinf/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000",
+  "unit_tests": [
+    {
+      "file": "tests/unit_tests/test_robotics.py",
+      "passed": 339,
+      "skipped": 0
+    },
+    {
+      "file": "tests/unit_tests/test_real_env.py",
+      "passed": 258,
+      "skipped": 0
+    },
+    {
+      "file": "tests/unit_tests/test_models.py",
+      "passed": 77,
+      "skipped": 1,
+      "skip_reason": "Could not import optional transformers.Gemma3ForCausalLM module; unrelated to Pi0.5."
+    }
+  ],
+  "unit_test_environment": "CUDA_VISIBLE_DEVICES=\"\" OMP_NUM_THREADS=2 PYTHONPATH=\"$PWD:$PWD/tests:$PWD/tests/unit_tests\"",
+  "unit_test_execution": "One pytest process per file, serial for Ray suites.",
+  "native_entrypoint": "evaluations/eval_embodied_agent.py",
+  "native_config": "realworld_spiritai_eval_pi05_subtask_deploy",
+  "native_cases": {
+    "native-observe": {
+      "returncode": 0,
+      "sdk_action_rows": 0,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "injected_delay_ms": 0,
+      "startup_timeout_s": 30,
+      "latest_session_id": "64f3141dd60046f6ae2c90942d019a67",
+      "events": {
+        "request": 14,
+        "response": 14,
+        "step": 150,
+        "episode_end": 1,
+        "closed": 1
+      },
+      "expected_nonzero_exit": false
+    },
+    "native-execute": {
+      "returncode": 0,
+      "sdk_action_rows": 300,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "injected_delay_ms": 0,
+      "startup_timeout_s": 30,
+      "latest_session_id": "97c0198195484ef6946e6512f719cce2",
+      "events": {
+        "request": 24,
+        "response": 24,
+        "step": 300,
+        "episode_end": 1,
+        "closed": 1
+      },
+      "expected_nonzero_exit": false
+    },
+    "native-timeout": {
+      "returncode": 1,
+      "sdk_action_rows": 47,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "injected_delay_ms": 1500,
+      "startup_timeout_s": 30,
+      "latest_session_id": "88ce61665b4546ee9bf21b7047c898ad",
+      "events": {
+        "request": 4,
+        "response": 3,
+        "step": 45,
+        "abort": 1,
+        "hold": 2,
+        "closed": 1
+      },
+      "expected_nonzero_exit": true
+    },
+    "native-startup-timeout": {
+      "returncode": 1,
+      "sdk_action_rows": 0,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "injected_delay_ms": 0,
+      "startup_timeout_s": 0.001,
+      "latest_session_id": "de7e207fbd16411bb0dfd33f44d4c3b1",
+      "events": {
+        "request": 1,
+        "abort": 1,
+        "closed": 1
+      },
+      "expected_nonzero_exit": true
+    }
+  },
+  "native_checks": [
+    {
+      "name": "native-execute-final",
+      "returncode": 0,
+      "command": [
+        "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+        "/tmp/rlinf-spiritai-compat-20261111/check_native_eval.py",
+        "--execute",
+        "--steps",
+        "300"
+      ]
+    },
+    {
+      "name": "native-observe-final",
+      "returncode": 0,
+      "command": [
+        "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+        "/tmp/rlinf-spiritai-compat-20261111/check_native_eval.py",
+        "--steps",
+        "150"
+      ]
+    },
+    {
+      "name": "native-timeout-final",
+      "returncode": 0,
+      "command": [
+        "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+        "/tmp/rlinf-spiritai-compat-20261111/check_native_eval.py",
+        "--execute",
+        "--steps",
+        "150",
+        "--inject-delay-ms",
+        "1500"
+      ]
+    },
+    {
+      "name": "native-startup-timeout-final",
+      "returncode": 0,
+      "command": [
+        "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+        "/tmp/rlinf-spiritai-compat-20261111/check_native_eval.py",
+        "--execute",
+        "--steps",
+        "10",
+        "--startup-timeout",
+        "0.001"
+      ],
+      "valid_evidence": false,
+      "note": "Initial fixture used 10 steps and exited during config divisibility validation; replaced by the corrected 150-step fixture."
+    },
+    {
+      "name": "test-robotics-final",
+      "returncode": 0,
+      "command": [
+        "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/unit_tests/test_robotics.py",
+        "-q"
+      ]
+    },
+    {
+      "name": "test-real_env-final",
+      "returncode": 0,
+      "command": [
+        "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/unit_tests/test_real_env.py",
+        "-q"
+      ]
+    },
+    {
+      "name": "native-execute-runtime-setup",
+      "returncode": 0,
+      "command": [
+        "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+        "/tmp/rlinf-spiritai-compat-20261111/check_native_eval.py",
+        "--execute",
+        "--steps",
+        "300"
+      ]
+    },
+    {
+      "name": "test-real_env-runtime-setup",
+      "returncode": 0,
+      "command": [
+        "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/unit_tests/test_real_env.py",
+        "-q"
+      ]
+    },
+    {
+      "name": "native-startup-timeout-corrected",
+      "returncode": 0,
+      "valid_evidence": true,
+      "command": [
+        ".venv/bin/python",
+        "/tmp/rlinf-spiritai-compat-20261111/check_native_eval.py",
+        "--execute",
+        "--steps",
+        "150",
+        "--startup-timeout",
+        "0.001"
+      ]
+    }
+  ],
+  "recorded_observation_check": {
+    "episodes": 80,
+    "batch_size": 1,
+    "checkpoint_step": 45000,
+    "gpu": "NVIDIA RTX PRO 5000 Blackwell",
+    "gpu_count": 1,
+    "input_resolution": [
+      240,
+      320
+    ],
+    "eos_rate": 1.0,
+    "all_actions_finite": true,
+    "unique_subtasks": 10,
+    "total_seconds_percentiles": {
+      "50": 0.6720056909980485,
+      "95": 0.8536171622647089,
+      "99": 0.8770295316781265,
+      "100": 0.8954718360037077
+    },
+    "peak_allocated_gib": 6.639188766479492,
+    "real_robot_connected": false,
+    "limits": [
+      "One recorded observation per episode; no closed-loop success claim.",
+      "RTC was disabled for these independent observations; native RTC was tested separately against a loopback container."
+    ]
+  },
+  "container_patch": {
+    "artifact": "robot_server_compat.patch",
+    "source_files_unchanged": true,
+    "applied_to_robot": false,
+    "checks": [
+      "T=1 resampling and dispatch",
+      "busy tracks SDK completion",
+      "cooperative cancellation stops further rows",
+      "post-ACK SDK error propagation"
+    ]
+  },
+  "documentation": {
+    "en_warnings": 0,
+    "zh_warnings": 0,
+    "harness": "docs-check/build_docs.py; docs-only environment filters expected autodoc import noise",
+    "inline_markup": "passed"
+  },
+  "lint": {
+    "ruff": "passed",
+    "ruff_format": "passed",
+    "git_diff_check": "passed"
+  },
+  "archive": "/home/deng/Documents/codebase/RLinf/logs/inference/20261111_deploy_validation",
+  "script_archive": "/home/deng/Documents/codebase/RLinf/logs/inference/20261111_deploy_validation/scripts",
+  "source_sha256": {
+    ".github/workflows/ci-tests.yml": "2cb844e60a46f510396435e1c54acbbf16b899e19b019b6ef0bc1e33fcf54aed",
+    "evaluations/realworld/_spiritai_pi05_rtc.yaml": "615f808030674f2624971d33fea3031025e708b6e9f36c890c1336d670b6f135",
+    "evaluations/realworld/_spiritai_pi05_subtask.yaml": "9e59546513f2aff59396d8eca31f9b9de497ae5fdd67616e676be756d16d3af3",
+    "evaluations/realworld/realworld_spiritai_eval_pi05_RTC.yaml": "658b6becc945b38490ca0a12b7101e19b02135ff0d92ba244269c2beca9cb5d5",
+    "evaluations/realworld/realworld_spiritai_eval_pi05_subtask_RTC.yaml": "5223d5a0500e1466d7b8e5f6d9d21e8d8bcaf8cadf870fb9768ab63e10ad6766",
+    "evaluations/realworld/realworld_spiritai_eval_pi05_subtask_deploy.yaml": "fdb5cbe8348f7e0c358b9400e308a3616f259f9a2a3926983992463eee3cb109",
+    "examples/embodiment/config/env/realworld_spiritai_cartesian.yaml": "530a1034e9e02498cf4901f9c46c09faedf5cb8f36c8f86ea54f49b3335d0985",
+    "rlinf/data/schema/embodied_types.py": "f3d9691b1c6eee28fed8815aefff88f2fdd04e36729384d65046195029f3c603",
+    "rlinf/envs/__init__.py": "05a5ef5a072b386fecf539f1e5237e3ba8352c1b61e4dc0f889c4b4fac03eb05",
+    "rlinf/envs/real/__init__.py": "bd1d4ebde7c6084363c8ee00d6ca26acb8f10c48f71c6c45aa6bc7e06f16778d",
+    "rlinf/envs/real/env.py": "0f93c884d691bb19969774924b8f705f81926510c13e1f9a73e491066ab15d26",
+    "rlinf/envs/real/spiritai/cartesian.py": "f426c0a007b9535aa80282b86da7ede9d3fcbc60aa8e2ca6569dbfcc7348d3ac",
+    "rlinf/models/embodiment/openpi/__init__.py": "0276fb056f30b1f9704e8cd87d728ea55e7cc645228a7656f7f718d250eb8702",
+    "rlinf/models/embodiment/openpi/checkpoint.py": "025f3e091d065d6aadd901edb3af82620bd4cbd777a6f6779ac98e54dd07bb3d",
+    "rlinf/models/embodiment/openpi/tasks/eval.py": "3a381d2fed76ee119d69a517c9bff7018deea981a865890a2a944bcc42087402",
+    "rlinf/robotics/spiritai.py": "59770cf35170a3994f243c0b4b1469eafde50eef6cd9aa93d5726f27a12e6d65",
+    "rlinf/runners/embodied_eval_runner.py": "81c162015bafdf654c48684c872e3b84c51875debd2a2c6a433185c6c68b31ef",
+    "rlinf/workers/env/rtc_control.py": "84a4dafe49c8216ec3f36e3edadba23b7265c70fc461b32e792bcf37394e8ef9",
+    "rlinf/workers/env/rtc_env_worker.py": "e0ba2ca8bea59bfd3982352887f6a03476d3aa6946a8112bef50b499e68e1f77",
+    "rlinf/workers/rollout/hf/rtc_huggingface_worker.py": "5f68e79638d182c37c334f142cb05973d0f94ac50181bad3a3f7aa0e6db32261",
+    "tests/robot_mocks/spiritai.py": "e287550ea016b3839644fe826e03dbd6a7ebf899a9075d7edc2426f989aca3f3",
+    "tests/unit_tests/test_models.py": "c447cc893b896c5d0d376e0a79674c4eff4365da6411fabc9021a6032e8074d4",
+    "tests/unit_tests/test_real_env.py": "c7d82fa2c40760790bb6dd452565444f9510679d2f1ca47f6cb28b3cb77ea277",
+    "tests/unit_tests/test_robotics.py": "db3773b84603663964b7ee92bee9df6e782e4fda509383ee2ebd3c806a5f26f4"
+  },
+  "limitations": [
+    "Robot SDK units, pose frame, deployed container version, network latency and physical cancellation remain unverified.",
+    "Loopback tests use real RLinf workers, policy and robot_server source with simulated robot SDK/cameras.",
+    "Recorded samples and static loopback observations do not establish closed-loop folding success.",
+    "Approx RTC uses model-space predicted tails; hardware limiting can change executed commands."
+  ],
+  "engineering_lessons": [
+    "Declare Hydra searchpath only in primary configs.",
+    "Convert prepare_actions NumPy output to CPU Tensor before typed RTC reply validation.",
+    "Warmup/bootstrap failure must not enable following or dispatch holds.",
+    "Run Ray suites serially and export tests/unit_tests for worker imports.",
+    "Remote-container registration must skip host ROS cleanup.",
+    "Expected-failure tests must verify the trace failure reason, not just a nonzero process exit."
+  ]
+}

@@ -16,6 +16,9 @@
 | [selected_execution_100_step_validation.json](selected_execution_100_step_validation.json) | 最终三个执行开关、100 条 history、51–100 同窗口比较 | 正式 save 5000；测试无保存，全部在 warmup 内 |
 | [execution_tuning_summary.json](execution_tuning_summary.json) | 2026-11-04 从已有本机摘要补档的执行候选与 GPU timeline 摘要 | 单次运行；第 6 步 profile 被排除计时；不等同于完整 trace |
 | [engineering_backup_manifest.json](engineering_backup_manifest.json) | 实现 commit、关键文件/metadata/stats 指纹、环境版本、补档核对范围 | 指纹只覆盖明确列出的文件，未打包完整数据或基础权重 |
+| [deployment_validation.json](deployment_validation.json) | 单 GPU、80 episode 离线检查、原生 Ray/loopback 测试和源码指纹 | 模拟 SDK；没有真机成功率结论；启动失败用例按 trace 校验原因 |
+| [robot_server_compat.patch](robot_server_compat.patch) | 单行动作、实际执行完成状态、错误回传和取消接口补丁 | 只验证临时副本，未应用到机器人 |
+| [robot_server_compat_manifest.json](robot_server_compat_manifest.json) | container 原文件和补丁后文件 SHA256、验证范围 | 机器人实际部署版本仍待核实 |
 
 ## 如何引用这些结果
 

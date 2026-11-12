@@ -1,4 +1,5 @@
 env_type: real
+runtime_setup: false
 total_num_envs: 1
 auto_reset: true
 ignore_terminations: false

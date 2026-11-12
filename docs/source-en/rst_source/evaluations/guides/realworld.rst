@@ -425,7 +425,7 @@ not find the intended keyboard. Construction does not connect or move the
 robot; resetting the evaluation opens the connection and enables external
 following as configured.
 
-The adapter bounds per-axis arm/torso translation and rotation rates,
+The adapter bounds arm/torso translation speed and SO(3) rotation angle per tick,
 gripper velocity, and base speed around measured state. Configure those
 limits under ``env.eval.override_cfg`` for the robot and task. The example
 sets base commands to zero for FoldBox. Match ``source_hz`` to the recorded
@@ -438,3 +438,70 @@ normalization statistics when loading a checkpoint. This deployment uses
 RLinf's ``approx`` RTC overlap guidance; it does not require training-time
 action-prefix conditioning. Measure latency and task success on the physical
 robot. See :doc:`../../guides/rtc` for the shared RTC controls and metrics.
+
+Explicit Subtask Checkpoints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``realworld_spiritai_eval_pi05_subtask_deploy`` to generate a subtask from the
+overall instruction and current observation, then generate actions from that
+subtask and observation. One GPU holds the complete merged policy. The env worker
+handles the robot connection on the same workstation; the robot container owns
+low-level execution. The SpiritAI env sets ``runtime_setup=false`` to register
+tasks without cleaning up local ROS processes.
+
+Keep ``full_weights.pt``, ``openpi_training.json``, and ``norm_stats.json`` together
+in the merged checkpoint directory. The deployment checks model dimensions,
+text/state settings and normalization against training metadata. Set the paths
+and start in the default observation-only mode:
+
+.. code-block:: bash
+
+   source .venv/bin/activate
+   CUDA_VISIBLE_DEVICES=0 bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_subtask_deploy \
+     rollout.model.model_path=/path/to/merged_pi05_subtask_lora \
+     rollout.model.openpi_data.norm_stats_path=/path/to/merged_pi05_subtask_lora/norm_stats.json \
+     env.eval.override_cfg.robot_url=ws://ROBOT_HOST:8766
+
+This connects to the container and runs the policy with
+``execution_enabled=false``. The client reads observations and status while
+leaving following mode and action dispatch unchanged. The profile uses three
+320×240 RGB cameras, a 25-D Cartesian state, 30 Hz control, 50-action chunks and
+10 Euler steps. Keep the overall instruction consistent with training; provide
+no fixed current subtask. ``planning_interval=3`` refreshes the planner every
+three action requests.
+
+Before enabling execution, verify that the deployed container advertises
+``execution_capabilities.single_step_cartesian``, ``tracked_completion`` and
+``cancel_actions`` as true and implements each capability. A single-row command
+must bypass multi-point interpolation. Busy must track actual SDK completion,
+and execution errors must appear in ``get_status.execution_error``. The
+``cancel_actions`` request must acknowledge only after subsequent dispatch has
+stopped. Request responses echo ``request_id``.
+
+After checking the image orientation, pose frame and gripper units, append
+``env.eval.override_cfg.execution_enabled=true`` to the command. This profile
+starts execution after warmup; it has no keyboard start gate. Following mode is
+enabled immediately before the first valid action. Reset reads the measured
+pose. Cartesian rotations use rotation vectors; translation and rotation rates
+are bounded around measured state, and base commands are zero. The example
+gripper command bounds ``[0, 0.1]`` come from demonstrations and require hardware
+validation.
+
+Warmup exercises plain Flow and ``approx`` RTC sampling before bootstrap.
+``bootstrap_timeout_s=30`` bounds warmup and bootstrap;
+``request_timeout_s=1.2`` bounds replan requests. Measure the latter budget on
+your GPU and network. The env worker keeps one request in flight, rejects late
+or mismatched responses, and advances action indices by local monotonic time.
+After a completed control tick, failure triggers ``stop_hold_steps=2`` measured-pose holds and closes the
+session, and reports ``rtc_aborted=1``. The runner exits with an error after
+worker shutdown. Container cancellation stops subsequent SDK sends; the
+controller can continue holding its last target.
+
+Warmup or bootstrap failure closes the session without enabling following or
+dispatching hold commands.
+
+Inspect ``<log_path>/<experiment_name>/rtc-env-0.jsonl`` for session/chunk IDs,
+generated text, EOS, latency, predicted and limited actions, measured states,
+hold attempts and cleanup. The profile retains W&B logging. Recorded-observation
+and loopback-container tests establish interface behavior; measure physical
+timing and task success separately.

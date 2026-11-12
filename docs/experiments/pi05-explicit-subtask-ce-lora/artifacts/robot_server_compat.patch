@@ -1,0 +1,227 @@
+--- a/robot_server/mozrobot.py
++++ b/robot_server/mozrobot.py
+@@ -18,6 +18,7 @@
+ 
+ import logging
+ import time
++import threading
+ from dataclasses import dataclass
+ 
+ import numpy as np
+@@ -118,6 +119,8 @@
+     dim = actions.shape[1]
+     data = actions.astype(np.float64)
+     n = data.shape[0]
++    if n == 1:
++        return actions.astype(np.float32, copy=True)
+     t_src = np.arange(n, dtype=np.float64)
+     t_tgt = np.arange(0.0, t_src[-1] + 1e-8, 1.0 / ratio)
+ 
+@@ -147,6 +150,7 @@
+     """Self-contained robot interface. No mozinfer dependency."""
+ 
+     def __init__(self, config: MozRobotConfig):
++        self._cancel_event = threading.Event()
+         self.config = config
+         self._robot = None
+         self._recorder = None
+@@ -253,6 +257,10 @@
+ 
+     # ----- Action dispatch with interpolation -----
+ 
++    def prepare_actions(self) -> None:
++        """Arm a new dispatch after the previous dispatch has completed."""
++        self._cancel_event.clear()
++
+     def send_cart_actions(self, actions: np.ndarray, source_hz: float) -> float:
+         """Interpolate cart actions from source_hz to target_hz and dispatch.
+ 
+@@ -266,10 +274,14 @@
+         t0 = time.monotonic()
+         dt = 1.0 / self.config.target_hz
+         for k in range(len(resampled)):
++            if self._cancel_event.is_set():
++                return time.monotonic()
+             target_ts = t0 + (k + 1) * dt
+             sleep_time = target_ts - time.monotonic()
+             if sleep_time > 0:
+                 time.sleep(sleep_time)
++            if self._cancel_event.is_set():
++                return time.monotonic()
+             self._robot.send_action_command(resampled[k].tolist())
+         return t0 + len(resampled) * dt
+ 
+@@ -286,16 +298,20 @@
+         t0 = time.monotonic()
+         dt = 1.0 / self.config.target_hz
+         for k in range(len(resampled)):
++            if self._cancel_event.is_set():
++                return time.monotonic()
+             target_ts = t0 + (k + 1) * dt
+             sleep_time = target_ts - time.monotonic()
+             if sleep_time > 0:
+                 time.sleep(sleep_time)
++            if self._cancel_event.is_set():
++                return time.monotonic()
+             self._robot.send_joint_command(resampled[k].tolist())
+         return t0 + len(resampled) * dt
+ 
+     def cancel_actions(self) -> None:
+-        """Stop in-flight actions. No-op in this simplified implementation."""
+-        pass
++        """Stop sending subsequent rows; the controller holds its last target."""
++        self._cancel_event.set()
+ 
+     # ----- Internals -----
+ 
+--- a/robot_server/server.py
++++ b/robot_server/server.py
+@@ -61,6 +61,8 @@
+         self._finish_at = 0.0
+         self._chunk_id = 0
+         self._kind: str | None = None
++        self._execution: asyncio.Future | None = None
++        self._execution_error: str | None = None
+ 
+         # One-to-one
+         self._active_client: ws_server.ServerConnection | None = None
+@@ -71,7 +73,13 @@
+     def _build_metadata(self) -> dict:
+         cams = [n.strip() for n in self._robot.config.camera_names.split(",") if n.strip()]
+         return {
+-            "version": "robot-server/0.3.0",
++            "version": "robot-server/0.3.1-rlinf-compat",
++            "cartesian_rotation": "rotvec",
++            "execution_capabilities": {
++                "single_step_cartesian": True,
++                "tracked_completion": True,
++                "cancel_actions": True,
++            },
+             "structure": self._robot.structure,
+             "cart_dim": self._robot.cart_dim,
+             "joint_dim": self._robot.joint_dim,
+@@ -92,7 +100,13 @@
+     # ----- Busy state -----
+ 
+     def _refresh_busy(self) -> None:
+-        if self._busy and time.monotonic() >= self._finish_at:
++        if self._execution is not None and self._execution.done():
++            try:
++                self._execution.result()
++            except Exception as exc:
++                self._execution_error = f"{type(exc).__name__}: {exc}"
++                logger.exception("action dispatch failed")
++            self._execution = None
+             self._busy = False
+             self._kind = None
+ 
+@@ -132,7 +146,10 @@
+ 
+         logger.info("client connected: %s", peer)
+         try:
+-            await ws.send(pack({"type": "hello", "metadata": self._metadata}))
++            self._refresh_busy()
++            if not self._busy:
++                self._execution_error = None
++            await ws.send(pack({"type": "hello", "metadata": self._build_metadata()}))
+             async for raw in ws:
+                 await self._dispatch(ws, raw)
+         except websockets.exceptions.ConnectionClosed:
+@@ -145,9 +162,10 @@
+             except Exception:
+                 pass
+         finally:
+-            await asyncio.to_thread(self._robot.cancel_actions)
+-            self._busy = False
+-            self._kind = None
++            try:
++                await self._cancel_dispatch()
++            except Exception:
++                logger.exception("dispatch cancellation failed on disconnect")
+             self._active_client = None
+             logger.info("client disconnected: %s", peer)
+ 
+@@ -171,10 +189,28 @@
+             await self._handle_get_status(ws, rid)
+         elif t == "set_external_following":
+             await self._handle_set_external_following(ws, msg, rid)
++        elif t == "cancel_actions":
++            try:
++                await self._cancel_dispatch()
++                response = {"type": "cancelled", "request_id": rid, "accepted": True}
++            except Exception as exc:
++                response = {"type": "cancelled", "request_id": rid, "accepted": False, "error": str(exc)}
++            await ws.send(pack(response))
+         else:
+             await ws.send(pack({"type": "error", "request_id": rid, "code": "unknown_type", "message": f"{t!r}"}))
+ 
+     # ----- Message handlers -----
++
++    async def _cancel_dispatch(self) -> None:
++        self._robot.cancel_actions()
++        if self._execution is not None:
++            try:
++                await asyncio.wait_for(asyncio.shield(self._execution), timeout=2.0)
++            except asyncio.TimeoutError:
++                raise RuntimeError("SDK dispatch did not finish within the cancellation deadline") from None
++            except Exception:
++                self._refresh_busy()
++        self._refresh_busy()
+ 
+     async def _handle_get_obs(self, ws, rid) -> None:
+         try:
+@@ -237,18 +273,22 @@
+             await ws.send(pack({"type": "error", "request_id": rid, "code": "bad_dim",
+                                 "message": f"expected dim in {valid_dims}, got {actions.shape[1]}"}))
+             return
+-        if actions.shape[0] > self._max_chunk:
++        if not 0 < actions.shape[0] <= self._max_chunk or not np.isfinite(actions).all():
+             await ws.send(pack({"type": "error", "request_id": rid, "code": "chunk_too_long",
+                                 "message": f"max {self._max_chunk}, got {actions.shape[0]}"}))
+             return
+ 
+         source_hz = msg.get("source_hz")
+-        if not isinstance(source_hz, (int, float)) or source_hz <= 0:
++        if not isinstance(source_hz, (int, float)) or not np.isfinite(source_hz) or source_hz <= 0:
+             await ws.send(pack({"type": "error", "request_id": rid, "code": "bad_source_hz", "message": f"{source_hz!r}"}))
+             return
+ 
+         # Check busy
+         self._refresh_busy()
++        if self._execution_error is not None:
++            await ws.send(pack({"type": "ack", "request_id": rid, "accepted": False,
++                                "error": self._execution_error}))
++            return
+         if self._busy:
+             await ws.send(pack({"type": "ack", "request_id": rid, "chunk_id": self._chunk_id,
+                                 "accepted": False, "expected_finish_at": self._finish_at, "error": "busy"}))
+@@ -260,17 +300,17 @@
+         n_resampled = len(np.arange(0.0, (actions.shape[0] - 1) + 1e-8, 1.0 / ratio))
+         expected_finish_at = time.monotonic() + n_resampled / self._robot.config.target_hz
+         self._set_busy(kind, expected_finish_at)
+-
+-        await ws.send(pack({"type": "ack", "request_id": rid, "chunk_id": self._chunk_id,
+-                            "accepted": True, "expected_finish_at": expected_finish_at}))
++        self._robot.prepare_actions()
+ 
+         # Dispatch in background so the event loop stays responsive
+-        asyncio.get_event_loop().run_in_executor(
++        self._execution = asyncio.get_running_loop().run_in_executor(
+             None,
+             self._robot.send_cart_actions if kind == "cart" else self._robot.send_joint_actions,
+             actions,
+             float(source_hz),
+         )
++        await ws.send(pack({"type": "ack", "request_id": rid, "chunk_id": self._chunk_id,
++                            "accepted": True, "expected_finish_at": expected_finish_at}))
+ 
+     async def _handle_get_status(self, ws, rid) -> None:
+         self._refresh_busy()
+@@ -278,6 +318,7 @@
+             "type": "status",
+             "request_id": rid,
+             "busy": self._busy,
++            "execution_error": self._execution_error,
+             "chunk_id": self._chunk_id,
+             "kind": self._kind,
+             "finish_at": self._finish_at,

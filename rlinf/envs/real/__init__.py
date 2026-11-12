@@ -44,22 +44,25 @@ _ROBOT_PACKAGES = (
 )
 
 _loaded = False
+_runtime_configured = False
 
 
-def load_tasks() -> None:
+def load_tasks(*, setup_runtime: bool = True) -> None:
     """Import every robot package and register its Gymnasium tasks.
 
     Idempotent, and safe to call from a process that reached a submodule
-    directly rather than through this package.
+    directly rather than through this package. Remote containers use
+    ``setup_runtime=False`` to register tasks without local ROS setup.
     """
-    global _loaded
-    if _loaded:
-        return
-    _loaded = True
-    for module in _ROBOT_PACKAGES:
-        importlib.import_module(module, __name__)
-    env_module = importlib.import_module(".env", __name__)
-    env_module.RealWorldEnv.realworld_setup()
+    global _loaded, _runtime_configured
+    if not _loaded:
+        for module in _ROBOT_PACKAGES:
+            importlib.import_module(module, __name__)
+        _loaded = True
+    if setup_runtime and not _runtime_configured:
+        env_module = importlib.import_module(".env", __name__)
+        env_module.RealWorldEnv.realworld_setup()
+        _runtime_configured = True
 
 
 def __getattr__(name: str) -> Any:

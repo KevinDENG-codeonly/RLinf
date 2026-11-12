@@ -7172,3 +7172,41 @@ def test_spiritai_client_closes_after_response_timeout():
             assert client.connected is False
         finally:
             client.close()
+
+
+def test_spiritai_client_rejects_a_different_request_response():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.robotics.spiritai import SpiritaiClient
+
+    with SpiritaiServer() as server:
+        client = SpiritaiClient(server.url)
+        try:
+            client.connect()
+            server.bad_response_id = True
+            with pytest.raises(RuntimeError, match="Expected obs response"):
+                client.observation()
+            assert not client.connected
+        finally:
+            client.close()
+
+
+def test_spiritai_client_checks_execution_after_accepted_ack():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.robotics.spiritai import SpiritaiClient
+
+    with SpiritaiServer() as server:
+        client = SpiritaiClient(server.url)
+        try:
+            client.connect()
+            client.validate_execution_capabilities()
+            server.fail_after_ack = True
+            client.send_actions(np.zeros((1, 25), dtype=np.float32), 30)
+            assert len(server.commands) == 1
+            with pytest.raises(RuntimeError, match="SDK dispatch failed"):
+                client.wait_idle()
+            client.cancel_actions()
+            assert server.messages[-1]["type"] == "cancel_actions"
+        finally:
+            client.close()
