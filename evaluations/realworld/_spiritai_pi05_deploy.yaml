@@ -1,0 +1,56 @@
+runner:
+  rtc:
+    enabled: true
+    bootstrap_timeout_s: 30.0
+    request_timeout_s: 1.2
+    shutdown_timeout_s: 15.0
+    warmup_requests: 2
+    stop_hold_steps: 2
+    require_subtask_eos: true
+
+env:
+  eval:
+    auto_reset: false
+    keyboard_reward_wrapper: null
+    override_cfg:
+      robot_url: ws://172.16.0.30:8766
+      source_hz: 30.0
+      task_description: Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.
+      image_height: 240
+      image_width: 320
+      zero_base_actions: true
+      execution_enabled: false
+      defer_external_following: true
+      require_execution_capabilities: true
+      min_cartesian_dim: 20
+      max_base_speed: 0.0
+      gripper_min: 0.0
+      gripper_max: 0.1
+
+rollout:
+  model:
+    precision: bf16
+    pi05: true
+    is_lora: false
+    use_proprio: true
+    action_dim: 25
+    num_action_chunks: 50
+    num_steps: 10
+    openpi:
+      task: eval
+      config_name: pi05_spiritai_cartesian
+      num_images_in_input: 3
+      embed_dtype: bf16
+      action_chunk: 50
+      action_env_dim: 25
+      model_action_dim: 32
+      num_steps: 10
+      discrete_state_input: true
+      max_token_len: 256
+      rtc_enabled: true
+      rtc_guidance_mode: approx
+      validate_deployment: true
+      deployment_metadata_path: /path/to/deployment/openpi_deployment.json
+    openpi_data:
+      norm_stats_path: /path/to/deployment/norm_stats.json
+      zero_base_action_targets: true

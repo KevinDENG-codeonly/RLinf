@@ -1,5 +1,7 @@
 # 实验 C：显式 Subtask CE + Flow LoRA 工程备份
 
+与 Full Flow 共用的部署规划见 [SpiritAI 统一推理 Bridge 原方案](../spiritai-inference-bridge/research-proposal.md)，包含两类权重、原生 RLinf 链路和机器人协议的核查。实现与验证见[统一 bridge 软件阶段记录](../spiritai-inference-bridge/implementation-2026-11-18.md)。
+
 从这里恢复实验 C 的实现背景、数据契约、训练配置和故障处理方法。记录回答三个问题：这轮改了什么、为什么这样改、以后遇到同类问题应检查什么。
 
 整理日期为 2026-11-04。实现与训练配置对应提交 [`3a7af6d1`](https://github.com/KevinDENG-codeonly/RLinf/commit/3a7af6d104afb24e0baf883ad1dd66c045040e69)，分支为 `feature/pi05-flow-explict-subtask-ce-lora`。性能与分布式验证来自 2026-11-02 的归档；本次补文档没有启动训练，也没有审计后续 45000 步运行的完成状态。

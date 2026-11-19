@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-11-18T01:43:24.947527+00:00",
+  "repository_head": "f1d402ae3c3821ef9fa1f1581837453e49f33b82",
+  "scope": "Read-only research and an implementation proposal. No training, neural inference, robot connection, or controller modifications.",
+  "full_flow": {
+    "checkpoint": "logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000",
+    "config_path": "logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/wandb/wandb/run-20261113_104028-8jehu52t/files/config.yaml",
+    "config_sha256": "8d359aae9a31a3035638d1a529180464c50e93870671e7d93234b5354edc4775",
+    "launch_metadata_path": "logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/wandb/wandb/run-20261113_104028-8jehu52t/files/wandb-metadata.json",
+    "recorded_git_head": "c6540301fd01f6ece8091feb2d4fa29e3c5d9e29",
+    "recorded_gpu_count": 2,
+    "launch_arguments": [
+      "--config-name",
+      "spiritai_sft_openpi_pi05_full",
+      "data.train_data_paths=/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_14Annotations",
+      "data.num_workers=4",
+      "data.stateful_loader=true",
+      "data.worker_malloc_trim_interval=64",
+      "actor.model.model_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/pi05_base_rlinf_pytorch",
+      "actor.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json",
+      "actor.model.openpi_data.zero_base_action_targets=true",
+      "actor.global_batch_size=64",
+      "actor.micro_batch_size=8",
+      "actor.optim.total_training_steps=45000",
+      "actor.optim.lr_warmup_steps=750",
+      "runner.max_steps=45000",
+      "runner.save_interval=5000",
+      "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64",
+      "runner.logger.experiment_name=spiritai_foldbox_pi05_full_bs64",
+      "+runner.resume_dir=/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_5000"
+    ],
+    "last_wandb_step": 44999,
+    "runner": {
+      "max_steps": 45000,
+      "save_interval": 5000,
+      "resume_dir": "/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_5000"
+    },
+    "model": {
+      "action_dim": 25,
+      "add_value_head": false,
+      "is_lora": false,
+      "lora_rank": 32,
+      "model_path": "/home/deng/Documents/codebase/RLinf/model_checkpoints/pi05_base_rlinf_pytorch",
+      "model_type": "openpi",
+      "num_action_chunks": 50,
+      "num_steps": 5,
+      "openpi": {
+        "action_chunk": 50,
+        "action_env_dim": 25,
+        "action_expert_variant": "gemma_300m",
+        "config_name": "pi05_spiritai_cartesian",
+        "discrete_state_input": true,
+        "embed_dtype": "bf16",
+        "max_token_len": 256,
+        "model_action_dim": 32,
+        "num_images_in_input": 3,
+        "paligemma_variant": "gemma_2b",
+        "task": "sft",
+        "torch_compile": false
+      },
+      "openpi_data": {
+        "norm_stats_path": "/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json",
+        "zero_base_action_targets": true
+      },
+      "precision": "fp32",
+      "use_proprio": true
+    },
+    "optimizer": {
+      "adam_beta1": 0.9,
+      "adam_beta2": 0.95,
+      "adam_eps": "1e-08",
+      "clip_grad": 1,
+      "lr": "1e-05",
+      "lr_scheduler": "openpi_cosine",
+      "lr_warmup_steps": 750,
+      "min_lr": "1e-05",
+      "total_training_steps": 45000,
+      "weight_decay": "1e-10"
+    },
+    "batch": {
+      "global": 64,
+      "micro": 8
+    },
+    "dataset": "/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_14Annotations",
+    "loader_signature": {
+      "repo_id": "/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_14Annotations",
+      "length": 1435931,
+      "world_size": 2,
+      "rank": 0,
+      "batch_size": 8,
+      "num_workers": 4,
+      "seed": 42,
+      "shuffle": true,
+      "config_name": "pi05_spiritai_cartesian",
+      "model": {
+        "action_dim": 32,
+        "action_horizon": 50,
+        "max_token_len": 256,
+        "dtype": "bfloat16",
+        "paligemma_variant": "gemma_2b",
+        "action_expert_variant": "gemma_300m",
+        "pi05": true,
+        "discrete_state_input": true
+      },
+      "data_kwargs": {
+        "norm_stats_path": "/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json",
+        "zero_base_action_targets": true
+      },
+      "norm_sha256": "8de11605d0f64116b6accac671c7156dc7e4a6bc917db10fafef6c4db186f505"
+    },
+    "dataset_metadata": {
+      "fps": 30,
+      "task_count": 40,
+      "first_task": "unknown",
+      "first_non_unknown_task": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.Current step: <After the left gripper has taken over support, open the right gripper and release the upper right section of the main wall. Adjust the cardboard vertical to table.>"
+    }
+  },
+  "subtask_lora": {
+    "checkpoint": "logs/20261102_233335-pi05_subtask_lora_bs64/spiritai_pi05_subtask_ce_flow_lora_bs64_45000/checkpoints/global_step_45000",
+    "config_path": "logs/20261102_233335-pi05_subtask_lora_bs64/wandb/wandb/run-20261102_233413-zs6f942j/files/config.yaml",
+    "config_sha256": "43ddce107c7671c07f96beacdc072e736a29f2dd0c5f99981b0e4a1221b8b5fd",
+    "launch_metadata_path": "logs/20261102_233335-pi05_subtask_lora_bs64/wandb/wandb/run-20261102_233413-zs6f942j/files/wandb-metadata.json",
+    "recorded_git_head": "c6540301fd01f6ece8091feb2d4fa29e3c5d9e29",
+    "recorded_gpu_count": 2,
+    "launch_arguments": [
+      "--config-name",
+      "spiritai_sft_openpi_pi05_subtask_lora",
+      "data.train_data_paths=/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks",
+      "actor.model.model_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/pi05_base_rlinf_pytorch",
+      "actor.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json",
+      "runner.max_steps=45000",
+      "actor.optim.total_training_steps=45000",
+      "actor.optim.lr_warmup_steps=750",
+      "runner.save_interval=5000",
+      "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/20261102_233335-pi05_subtask_lora_bs64",
+      "runner.logger.experiment_name=spiritai_pi05_subtask_ce_flow_lora_bs64_45000"
+    ],
+    "last_wandb_step": 44999,
+    "runner": {
+      "max_steps": 45000,
+      "save_interval": 5000,
+      "resume_dir": null
+    },
+    "model": {
+      "action_dim": 25,
+      "add_value_head": false,
+      "is_lora": true,
+      "lora_alpha": 16,
+      "lora_expert_alpha": 32,
+      "lora_expert_rank": 32,
+      "lora_rank": 16,
+      "lora_target_scope": "openpi_experts",
+      "model_path": "/home/deng/Documents/codebase/RLinf/model_checkpoints/pi05_base_rlinf_pytorch",
+      "model_type": "openpi",
+      "num_action_chunks": 50,
+      "num_steps": 5,
+      "openpi": {
+        "action_chunk": 50,
+        "action_env_dim": 25,
+        "action_expert_variant": "gemma_300m",
+        "config_name": "pi05_spiritai_cartesian",
+        "discrete_state_input": true,
+        "embed_dtype": "bf16",
+        "hierarchical": {
+          "ce_chunk_size": 32,
+          "enabled": true,
+          "flow_loss_weight": 10,
+          "max_subtask_tokens": 96,
+          "planning_interval": 1,
+          "text_loss_weight": 1
+        },
+        "max_token_len": 256,
+        "model_action_dim": 32,
+        "num_images_in_input": 3,
+        "paligemma_variant": "gemma_2b",
+        "task": "sft",
+        "torch_compile": true
+      },
+      "openpi_data": {
+        "norm_stats_path": "/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json",
+        "zero_base_action_targets": true
+      },
+      "precision": "fp32",
+      "use_proprio": true
+    },
+    "optimizer": {
+      "adam_beta1": 0.9,
+      "adam_beta2": 0.95,
+      "adam_eps": "1e-08",
+      "clip_grad": 1,
+      "lr": "1e-05",
+      "lr_scheduler": "openpi_cosine",
+      "lr_warmup_steps": 750,
+      "min_lr": "1e-05",
+      "total_training_steps": 45000,
+      "weight_decay": "1e-10"
+    },
+    "batch": {
+      "global": 64,
+      "micro": 8
+    },
+    "dataset": "/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks",
+    "loader_signature": {
+      "repo_id": "/home/deng/Documents/dataset/20260805_FoldBox_SpiritAI_Moz1WB_10subtasks",
+      "length": 1148747,
+      "world_size": 2,
+      "rank": 0,
+      "batch_size": 8,
+      "num_workers": 4,
+      "seed": 42,
+      "shuffle": true,
+      "config_name": "pi05_spiritai_cartesian",
+      "model": {
+        "action_dim": 32,
+        "action_horizon": 50,
+        "max_token_len": 256,
+        "dtype": "bfloat16",
+        "paligemma_variant": "gemma_2b",
+        "action_expert_variant": "gemma_300m",
+        "pi05": true,
+        "discrete_state_input": true
+      },
+      "data_kwargs": {
+        "norm_stats_path": "/home/deng/Documents/codebase/RLinf/model_checkpoints/foldbox_assets/norm_stats.json",
+        "zero_base_action_targets": true
+      },
+      "norm_sha256": "8de11605d0f64116b6accac671c7156dc7e4a6bc917db10fafef6c4db186f505",
+      "hierarchical": {
+        "enabled": true,
+        "text_loss_weight": 1.0,
+        "flow_loss_weight": 10.0,
+        "max_subtask_tokens": 96,
+        "planning_interval": 1,
+        "ce_chunk_size": 32
+      },
+      "hierarchical_format_version": 1,
+      "data_sha256": "73bd8e57d645240b94306e79a92a8de2f71b80e795d65a82705ad6c2eb96cdfd"
+    },
+    "dataset_metadata": {
+      "fps": 30,
+      "task_count": 1,
+      "first_task": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.",
+      "first_non_unknown_task": "Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table."
+    }
+  },
+  "weight_inventory": {
+    "full_flow": {
+      "path": "logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000/actor/model_state_dict/full_weights.pt",
+      "bytes": 13413970310,
+      "tensors": 667,
+      "lora_named_entries_including_scaling_buffers": 0,
+      "fp32_tensor_entries": 667,
+      "tensor_schema_sha256": "cb0946e3a84d1a17e73582e89131c10bcaca83f775522eb31559a944640852d3",
+      "payload_values_compared": false
+    },
+    "subtask_lora": {
+      "path": "logs/20261102_233335-pi05_subtask_lora_bs64/spiritai_pi05_subtask_ce_flow_lora_bs64_45000/checkpoints/global_step_45000/actor/model_state_dict/full_weights.pt",
+      "bytes": 13548067901,
+      "tensors": 1279,
+      "lora_named_entries_including_scaling_buffers": 612,
+      "fp32_tensor_entries": 1279,
+      "tensor_schema_sha256": "9f5d5b54af02c86bd68249e0234b21e2fb2db0d4ec90526e721564202369cedb",
+      "payload_values_compared": false
+    },
+    "subtask_merged": {
+      "path": "logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000/full_weights.pt",
+      "bytes": 13413956230,
+      "tensors": 667,
+      "lora_named_entries_including_scaling_buffers": 0,
+      "fp32_tensor_entries": 667,
+      "tensor_schema_sha256": "cb0946e3a84d1a17e73582e89131c10bcaca83f775522eb31559a944640852d3",
+      "payload_values_compared": false
+    }
+  },
+  "full_and_merged_tensor_schemas_equal": true,
+  "metadata": {
+    "full_checkpoint_embedded_training_metadata_exists": false,
+    "lora_checkpoint_metadata_path": "logs/20261102_233335-pi05_subtask_lora_bs64/spiritai_pi05_subtask_ce_flow_lora_bs64_45000/checkpoints/global_step_45000/actor/openpi_training.json",
+    "lora_template_version": 1,
+    "merged_export": "logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000",
+    "full_norm_file_sha256": "8de11605d0f64116b6accac671c7156dc7e4a6bc917db10fafef6c4db186f505",
+    "full_norm_matches_checkpoint_signature": true,
+    "normalization_semantically_equal": true,
+    "provenance_note": "W&B git HEAD alone does not establish a clean historical working tree; retain config, checkpoint metadata, and source hashes separately."
+  },
+  "current_raw_profiles": {
+    "realworld_spiritai_eval_pi05_RTC": {
+      "rollout.model.precision": null,
+      "rollout.model.openpi.num_images_in_input": 2,
+      "rollout.model.openpi_data.zero_base_action_targets": null,
+      "rollout.model.openpi.validate_deployment": null,
+      "runner.rtc.request_timeout_s": null,
+      "env.eval.override_cfg.execution_enabled": null,
+      "env.eval.override_cfg.image_height": 480,
+      "env.eval.override_cfg.image_width": 640,
+      "env.eval.override_cfg.source_hz": 30.0
+    },
+    "realworld_spiritai_eval_pi05_subtask_deploy": {
+      "rollout.model.precision": "bf16",
+      "rollout.model.openpi.num_images_in_input": 3,
+      "rollout.model.openpi_data.zero_base_action_targets": true,
+      "rollout.model.openpi.validate_deployment": true,
+      "runner.rtc.request_timeout_s": 1.2,
+      "env.eval.override_cfg.execution_enabled": false,
+      "env.eval.override_cfg.image_height": 240,
+      "env.eval.override_cfg.image_width": 320,
+      "env.eval.override_cfg.source_hz": 30.0
+    }
+  },
+  "robot_server": {
+    "source_root": "/home/deng/Documents/codebase/robot_server_code/robot_server",
+    "source_version": "0.3.0",
+    "deployed_version_verified": false,
+    "single_row_resampling_test": {
+      "success": false,
+      "exception": "ValueError",
+      "message": "`x` must contain at least 2 elements."
+    },
+    "source_files": {
+      "server.py": {
+        "sha256": "2fca22e0cffe72773858049f2ece43627faf94394612641c60f35255c6da0c7f",
+        "matches_pre_patch_manifest": true
+      },
+      "mozrobot.py": {
+        "sha256": "464e3d8f1db9f2c0374cbd88a4fda2ae79767aef7389a927c08fee50e3ffce17",
+        "matches_pre_patch_manifest": true
+      }
+    },
+    "findings": [
+      "No execution_capabilities declaration in hello metadata.",
+      "Busy clears by estimated finish time.",
+      "ACK precedes untracked background SDK dispatch.",
+      "cancel_actions is a no-op."
+    ],
+    "existing_compatibility_patch": "docs/experiments/pi05-explicit-subtask-ce-lora/artifacts/robot_server_compat.patch"
+  },
+  "source_sha256": {
+    "evaluations/eval_embodied_agent.py": "c849ae384a71a8e023ec568e5271fc2782c46d824df80613ce534d03fe7ffcd7",
+    "evaluations/run_eval.sh": "17fbc157fe2ea7d3159c04ca2f58b44eccdde1077d062f43661fff57acd898c3",
+    "rlinf/runners/embodied_eval_runner.py": "81c162015bafdf654c48684c872e3b84c51875debd2a2c6a433185c6c68b31ef",
+    "rlinf/workers/env/rtc_env_worker.py": "e0ba2ca8bea59bfd3982352887f6a03476d3aa6946a8112bef50b499e68e1f77",
+    "rlinf/workers/env/rtc_control.py": "84a4dafe49c8216ec3f36e3edadba23b7265c70fc461b32e792bcf37394e8ef9",
+    "rlinf/workers/rollout/hf/rtc_huggingface_worker.py": "5f68e79638d182c37c334f142cb05973d0f94ac50181bad3a3f7aa0e6db32261",
+    "rlinf/models/embodiment/openpi/checkpoint.py": "025f3e091d065d6aadd901edb3af82620bd4cbd777a6f6779ac98e54dd07bb3d",
+    "rlinf/models/embodiment/openpi/tasks/eval.py": "3a381d2fed76ee119d69a517c9bff7018deea981a865890a2a944bcc42087402",
+    "rlinf/robotics/spiritai.py": "59770cf35170a3994f243c0b4b1469eafde50eef6cd9aa93d5726f27a12e6d65",
+    "rlinf/envs/real/spiritai/cartesian.py": "f426c0a007b9535aa80282b86da7ede9d3fcbc60aa8e2ca6569dbfcc7348d3ac",
+    "rlinf/utils/ckpt_convertor/openpi/merge_lora.py": "fb5587afb5c762b555f2b60b72e9f226f3d856c5a489008f5c68e64a42d69277"
+  },
+  "verification_limits": [
+    "Tensor names/shapes/dtypes were inspected through CPU mmap; weights were not compared numerically or loaded into a running policy.",
+    "Protocol behavior was checked against local source and the pure resampling function, not a deployed robot.",
+    "Historical validation logs are separate evidence, not tests rerun in this research pass."
+  ]
+}

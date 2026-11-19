@@ -46,6 +46,7 @@ class SpiritaiCartesianConfig:
     execution_enabled: bool = True
     defer_external_following: bool = False
     require_execution_capabilities: bool = False
+    min_cartesian_dim: int = 14
     gripper_min: float | None = None
     gripper_max: float | None = None
     max_arm_translation_m_s: float = 0.08
@@ -56,6 +57,10 @@ class SpiritaiCartesianConfig:
     max_base_speed: float = 0.05
 
     def __post_init__(self) -> None:
+        if self.min_cartesian_dim not in (14, 20, 23):
+            raise ValueError(
+                f"Expected min_cartesian_dim in (14, 20, 23), got {self.min_cartesian_dim}."
+            )
         if not np.isfinite(self.source_hz) or self.source_hz <= 0:
             raise ValueError(
                 f"Expected positive finite source_hz, got {self.source_hz}."
@@ -135,6 +140,11 @@ class SpiritaiCartesianEnv(gym.Env):
         super().reset(seed=seed)
         try:
             self.client.connect()
+            if self.client.command_dim < self.config.min_cartesian_dim:
+                raise ValueError(
+                    f"Expected Cartesian dimension >= {self.config.min_cartesian_dim}, "
+                    f"got {self.client.command_dim}; torso commands would be lost."
+                )
             self.client.wait_idle()
             observation = self._observe()
             if self.config.execution_enabled:
@@ -255,19 +265,29 @@ class SpiritaiCartesianEnv(gym.Env):
     def close(self) -> None:
         """Release following mode acquired by this env and close the client."""
         try:
-            if (
-                self.config.execution_enabled
-                and self.client.connected
-                and self.client.metadata.get("execution_capabilities", {}).get(
-                    "cancel_actions"
-                )
-            ):
-                self.client.cancel_actions()
-            if self._following_enabled and self.client.connected:
-                self.client.wait_idle()
-                self.client.request(
-                    {"type": "set_external_following", "enabled": False}
-                )
+            try:
+                if (
+                    self.config.execution_enabled
+                    and self.client.connected
+                    and self.client.metadata.get("execution_capabilities", {}).get(
+                        "cancel_actions"
+                    )
+                ):
+                    self.client.cancel_actions()
+                elif self._following_enabled and self.client.connected:
+                    self.client.wait_idle()
+            finally:
+                if self._following_enabled and self.client.connected:
+                    response = self.client.request(
+                        {"type": "set_external_following", "enabled": False}
+                    )
+                    if (
+                        not response.get("accepted")
+                        or response.get("enabled") is not False
+                    ):
+                        raise RuntimeError(
+                            f"Expected disabled external following, got {response!r}."
+                        )
         finally:
             self._following_enabled = False
             self.client.close()

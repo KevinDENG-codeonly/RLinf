@@ -375,50 +375,112 @@ Dual Franka 部署
 SpiritAI 机器人 Container
 --------------------------
 
-使用 ``realworld_spiritai_eval_pi05_RTC.yaml``，通过机器人已有的 WebSocket container 部署 SpiritAI Cartesian checkpoint。RLinf env 和 rollout workers 运行在 GPU 工作站，机器人底层控制仍由 container 负责。
+通过已有机器人 WebSocket container 部署 Full Flow 或 Explicit Subtask LoRA，每次选择一种 policy。一个 rollout worker 在一张 GPU 上持有模型，CPU env worker 独占机器人连接，两套配置共用原生 evaluation runner 与 RTC workers。机器人 container 负责相机和 SDK 执行；``runtime_setup=false`` 保留本机 ROS 进程。
 
-client 使用已有的 MessagePack NumPy 协议：``hello``、``get_obs``、``get_status``、``set_external_following`` 和 ``send_command``。它检查 Cartesian 能力并发送 ``kind: cart`` 指令。25 维 policy 输出去掉两个 psi 后，映射到 container 支持的 14、20 或 23 维布局。RTC 每个 tick 下发一行动作，rollout worker 同时生成下一 chunk。
+.. list-table:: 选择 Policy
+   :header-rows: 1
+   :widths: 35 65
 
-指定机器人地址、任务指令、checkpoint 和训练时使用的 stats：
+   * - 配置
+     - 推理契约
+   * - ``realworld_spiritai_eval_pi05_full_deploy``
+     - 观测 + overall 指令 → Flow 动作，关闭 hierarchy。
+   * - ``realworld_spiritai_eval_pi05_subtask_deploy``
+     - 观测 + overall → 生成 Subtask；观测 + Subtask → Flow 动作。先合并 LoRA adapter。
+
+准备 Checkpoint 记录
+~~~~~~~~~~~~~~~~~~~~
+
+使用实际 W&B ``config.yaml`` 和 ``wandb-metadata.json`` 生成新的部署目录。Full Flow 还会根据所有 rank 保存的 ``actor/data.pt`` loader signature 核对 normalization 指纹；Subtask 使用合并 checkpoint 中的 ``openpi_training.json``。替换路径，并将 ``POLICY_KIND`` 设为 ``flow_only`` 或 ``explicit_subtask``：
 
 .. code-block:: bash
 
-   bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_RTC \
-     rollout.model.model_path=/path/to/checkpoints/global_step_90000 \
-     rollout.model.openpi_data.norm_stats_path=/path/to/foldbox_assets/norm_stats.json \
+   .venv/bin/python -m rlinf.utils.ckpt_convertor.openpi.prepare_deployment \
+     --policy-kind POLICY_KIND \
+     --ckpt /path/to/native_or_merged_checkpoint \
+     --training-config /path/to/wandb/run/files/config.yaml \
+     --launch-metadata /path/to/wandb/run/files/wandb-metadata.json \
+     --output /path/to/new_deployment_bundle
+
+该命令写入 ``openpi_deployment.json`` 和 ``norm_stats.json``，保留源权重与历史训练 metadata。manifest 保存训练设置、来源 hash、step、模式和完整权重文件 SHA256；启动时核对权重、normalization、state/token 设置与模型维度。大 checkpoint 的 hash 会增加启动 I/O。记录到的 Git HEAD 不能证明历史工作区干净。
+
+准备 Full Flow 时，保留原生 ``global_step_<N>/actor/model_state_dict/full_weights.pt`` 和 ``actor/data.pt`` 布局。Subtask LoRA 先使用已有 ``merge_lora`` 导出器，再对合并目录执行准备命令。工具只读取可信本地 checkpoint，拒绝覆盖已有输出目录，也拒绝未合并 adapter。
+
+只读检查 Container
+~~~~~~~~~~~~~~~~~~
+
+启动 bridge 前，读取 metadata、状态、三路 RGB 图像和 25D 测量状态：
+
+.. code-block:: bash
+
+   .venv/bin/python -m toolkits.realworld_check.check_spiritai \
+     --url ws://ROBOT_HOST:8766 --require-execution
+
+检查只发送 ``get_status`` 和 ``get_obs``，随后释放独占连接；执行能力检查不会开启 following。whole-body profile 要求 Cartesian endpoint 至少为 20D，以保留 torso 指令；23D 还包含固定为零的 base 指令。client 从 25D policy 动作中删除两个 psi。
+
+``execution_capabilities`` 下的 ``single_step_cartesian``、``tracked_completion`` 和 ``cancel_actions`` 是当前 RLinf 适配新增的约定，原 OpenPI bridge 没有要求这些字段。缺少声明不能单独证明缺少行为，更新前应核对实际 server 源码。兼容实现让单行目标绕过多点插值，busy 跟踪后台 SDK 下发 Future，``get_status.execution_error`` 暴露 ACK 后的错误；取消在后续 Python 下发停止后回复。Future 完成或取消均不表示机械到位，也不撤销控制器已接受的目标；回复携带对应 ``request_id``。
+
+对于已支持的本地 server 版本，生成可审阅的兼容副本：
+
+.. code-block:: bash
+
+   .venv/bin/python -m toolkits.realworld_check.prepare_spiritai_server \
+     --source-root /path/to/robot_server_code \
+     --output /path/to/new_reviewed_server_copy
+
+工具核对源文件与补丁后的精确 hash，将归档补丁应用到新副本，保留原源码，不安装或启动副本。需另外核对机器人运行中的 container 版本并部署匹配代码；能力标志本身不能证明执行行为正确。
+
+预览所选 Policy
+~~~~~~~~~~~~~~~
+
+先使用默认观测模式，指定所选配置、checkpoint、已准备的 bundle 和机器人地址：
+
+.. code-block:: bash
+
+   PATH="$PWD/.venv/bin:$PATH" bash evaluations/run_eval.sh realworld \
+     realworld_spiritai_eval_pi05_full_deploy \
+     cluster.component_placement.rollout=0 \
+     rollout.model.model_path=/path/to/checkpoints/global_step_45000 \
+     rollout.model.openpi.deployment_metadata_path=/path/to/deployment/openpi_deployment.json \
+     rollout.model.openpi_data.norm_stats_path=/path/to/deployment/norm_stats.json \
      env.eval.override_cfg.robot_url=ws://ROBOT_HOST:8766 \
-     'env.eval.override_cfg.task_description="Fold the cardboard box"' \
-     env.eval.override_cfg.zero_base_actions=true
+     env.eval.max_steps_per_rollout_epoch=300 \
+     env.eval.max_episode_steps=300 \
+     env.eval.override_cfg.execution_enabled=false \
+     'runner.logger.logger_backends=[]'
 
-该命令连接真实机器人。reset 读取当前位置，请提前将机器人置于任务起始构型。默认 keyboard wrapper 等待按下 ``a`` 开始运行，按下 ``c`` 标记成功，按下 ``b`` 标记失败。自动选择无法找到所需键盘时，设置 ``env.eval.keyboard_device``。构造环境不会连接或移动机器人；评测 reset 才建立连接，并按配置启用 external following。
+该命令在 ``execution_enabled=false`` 下运行 policy，保持动作和 following 状态不变。用 ``cluster.component_placement.rollout`` 指定一个 RLinf GPU hardware rank。切换 Subtask LoRA 时，改用 ``realworld_spiritai_eval_pi05_subtask_deploy``，并传入它的合并 checkpoint 和对应 bundle。两者分开运行，每次使用一张 GPU 和同一套 bridge。
 
-适配层基于测量状态限制机械臂和躯干的平移速度、单 tick 的 SO(3) 旋转角，以及夹爪速度和底盘速度。根据机器人与任务，在 ``env.eval.override_cfg`` 中配置这些限制。示例针对 FoldBox 将底盘指令置零。``source_hz`` 应与采集数据频率匹配，默认 30 Hz。请求包含发送和接收的总超时，传输失败后会关闭连接，避免复用旧响应。关闭活动环境时，会释放 external following 并关闭连接。
+这三个 env 覆盖值是 Hydra 运行配置，不是模型 observation。YAML 默认是 ``3000 / 3000 / false``，命令行优先；接受默认值时可以省略，也可以在 ``realworld_spiritai_eval_pi05_full_deploy.yaml`` 中持久化 Full 的设置。两个长度参数由不同组件使用：
 
-加载 checkpoint 时，保持训练时的 state token 设置、token 上限、相机顺序和归一化统计。部署采用 RLinf 的 ``approx`` RTC overlap guidance，不要求训练时加入动作前缀条件。延迟和任务成功率需要在真机上测量。共用 RTC 参数与指标见 :doc:`../../guides/rtc`。
+.. list-table:: 运行配置覆盖
+   :header-rows: 1
+   :widths: 42 58
 
-显式 Subtask Checkpoint
-~~~~~~~~~~~~~~~~~~~~~~~
+   * - 参数
+     - 作用
+   * - ``env.eval.max_steps_per_rollout_epoch``
+     - worker 每轮控制循环预算，当前 validator 要求可被 action horizon 50 整除。
+   * - ``env.eval.max_episode_steps``
+     - 环境单 episode 上限，到达时产生 timeout truncation/done；不要求与 worker 预算相等。
+   * - ``env.eval.override_cfg.execution_enabled``
+     - false 仅预测/读取；true 在预热和 bootstrap 后提交机器人动作。
 
-使用 ``realworld_spiritai_eval_pi05_subtask_deploy``，先根据 overall 指令和当前观测生成 subtask，再根据 subtask 和观测生成动作。完整的合并 policy 运行在一张 GPU 上；同一工作站的 env worker 负责机器人连接，机器人 container 负责底层执行。SpiritAI env 设置 ``runtime_setup=false``，注册任务时跳过本机 ROS 进程清理。
+单轮、auto-reset 关闭时，通常先到的上限结束本轮；一起设成目标 tick 数可保持边界一致。tick 是控制步，不是模型查询次数、Euler 次数或训练更新。延长运行无需修改 ``source_hz`` 或模型 horizon。
 
-在合并 checkpoint 目录中同时保留 ``full_weights.pt``、``openpi_training.json`` 和 ``norm_stats.json``。部署会根据训练 metadata 核对模型维度、文本与 state 设置以及 normalization。指定路径，先启动默认的观测模式：
+两套配置均使用三路 320×240 RGB 图像、25D Cartesian state、state token、256-token context、50 行 action chunk、10 次 Euler integration、BF16 与既有 FP32 islands，以及标称 30 Hz 控制。container/controller 的 120 Hz 是另一层频率。overall 和 normalization 应与任务一致。Full Flow 保留既定 overall-only 推理 baseline，即使历史训练 prompt 包含 current step；Subtask LoRA 自行生成文本，``planning_interval=3`` 表示三个 action request。每个 episode 重置 planner，Subtask 变化后停用上一 chunk 的 guidance。
 
-.. code-block:: bash
+开启执行与检查退出
+~~~~~~~~~~~~~~~~~~
 
-   source .venv/bin/activate
-   CUDA_VISIBLE_DEVICES=0 bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_subtask_deploy \
-     rollout.model.model_path=/path/to/merged_pi05_subtask_lora \
-     rollout.model.openpi_data.norm_stats_path=/path/to/merged_pi05_subtask_lora/norm_stats.json \
-     env.eval.override_cfg.robot_url=ws://ROBOT_HOST:8766
+核对相机方向、位姿参考系、夹爪单位、起始构型和 container 行为后，在预览命令中追加 ``env.eval.override_cfg.execution_enabled=true``。profile 在预热和 bootstrap 后直接执行，不含键盘启动 gate。第一条有效指令下发前开启 following；平移、SO(3) 旋转与夹爪速度基于测量状态限幅，base 固定为零。示范夹爪范围 ``[0, 0.1]`` 仍需验证硬件契约。
 
-该命令连接 container，并在 ``execution_enabled=false`` 下运行 policy。client 读取观测和状态，保持 following mode 和动作下发不变。profile 使用三路 320×240 RGB 图像、25D Cartesian state、30 Hz 控制、50 行 action chunk 和 10 次 Euler integration。overall 应与训练任务一致，不输入固定的当前 subtask。``planning_interval=3`` 表示每三个动作请求刷新高层规划。
+Full Flow 约一分钟动作可在 preflight 后把两个长度参数设为 ``1500``，并开启执行。2026-11-19 的真机运行完成 1500 tick，首末 step 间隔 58.97 秒，约 25.42 Hz，无 abort 或关闭错误。这是依据实测频率换算，不是严格墙钟计时；模型加载和预热另计。操作人员确认机器人运动及推理链路正常，尚不构成量化折盒成功率。完整命令、参数来源、部署过程与 trace 证据保存在仓库 ``docs/experiments/spiritai-inference-bridge/``。
 
-开启执行前，确认部署中的 container 将 ``execution_capabilities.single_step_cartesian``、``tracked_completion`` 和 ``cancel_actions`` 声明为 true，并实现对应行为。单行动作必须绕过多点插值；busy 应跟踪 SDK 的实际执行完成状态，错误通过 ``get_status.execution_error`` 暴露；``cancel_actions`` 应在后续 dispatch 停止后才回复确认。请求回复需携带对应的 ``request_id``。
+warmup 覆盖普通 Flow 和 ``approx`` 采样。``bootstrap_timeout_s=30`` 限制每个 warmup/bootstrap 请求，``request_timeout_s=1.2`` 限制 replan。应在实际 GPU 和网络上测量预算，包括 HL cache miss。保持 ``runner.rtc.enabled=true`` 使用异步调度；``rollout.model.openpi.rtc_enabled=false`` 只关闭 sampler guidance，保留同一个控制器。两种模式均报告真实 guidance 使用情况，共用行为见 :doc:`../../guides/rtc`。
 
-核对图像方向、位姿参考系和夹爪单位后，在启动命令中追加 ``env.eval.override_cfg.execution_enabled=true``。该 profile 预热后直接开始执行，不使用键盘启动 gate。following mode 在第一条有效动作下发前开启，reset 只读取测量位姿。Cartesian 旋转按 rotation vector 处理，平移和旋转速度基于测量状态限幅，base 指令固定为零。示例夹爪 command 范围 ``[0, 0.1]`` 来自示范数据，仍需验证硬件契约。
+env 同时只保留一个推理请求，拒绝迟到或错配回复，按本地 monotonic time 推进动作索引。warmup/bootstrap 失败时关闭连接，不发送 action 或 hold；完成过控制 tick 后，异常最多尝试两次实测位姿 hold，关闭连接并报告 ``rtc_aborted=1``。即使执行报错，关闭流程仍尝试释放 following；runner 在 worker 收尾后报告失败。
 
-warmup 在 bootstrap 前覆盖普通 Flow 和 ``approx`` RTC 采样。``bootstrap_timeout_s=30`` 限制 warmup 和 bootstrap，``request_timeout_s=1.2`` 限制 replan；后者需要根据实际 GPU 和网络延迟校验。env worker 同时只保留一个推理请求，拒绝迟到或错配的回复，并按本地 monotonic time 推进动作索引。已经成功执行过控制 tick 时，异常会触发 ``stop_hold_steps=2`` 次实测位姿保持，关闭连接并报告 ``rtc_aborted=1``；runner 等待 worker 收尾后以错误状态退出。container 取消会停止后续 SDK 下发，底层控制器仍可能保持最后一个目标。
+bounded evaluation 期间，driver 收到 SIGINT、SIGTERM 或 worker 失败通知后，通过 RLinf Channel 请求 env 停止，再退出；等待清理的上限为 ``shutdown_timeout_s``。最后一个未完成预测会被丢弃，不延迟连接关闭。进程或节点硬故障仍依赖 container 的断连取消。取消只停止后续 SDK 下发，不等价电机急停，也不撤销控制器最后的目标。
 
-warmup 或 bootstrap 失败时关闭连接，不开启 following 或下发 hold 指令。
-
-通过 ``<log_path>/<experiment_name>/rtc-env-0.jsonl`` 查看 session/chunk 标识、生成文本、EOS、延迟、预测与限幅动作、测量状态、保持尝试及清理结果。profile 保留 W&B 日志。录制观测与 loopback container 测试验证接口行为，物理时序和任务成功率需要另行测量。
+通过 ``<log_path>/<experiment_name>/rtc-env-0.jsonl`` 查看 session/chunk 标识、生成文本/EOS、真实 guidance、请求/推理延迟、预测与限幅指令、测量状态、hold 尝试及 ``closed`` 或 ``close_error``。YAML 保留 W&B，而本页预览命令关闭该可选后端，保留终端和 RTC JSONL。需要 W&B 时删除覆盖，并设置与已有凭据主机一致的 ``WANDB_BASE_URL``。``MetricLogger → wandb.init`` 报错发生在 worker 初始化及权重加载前。Full Flow 真机记录验证推理链路，物理任务成功率仍需单独评估。

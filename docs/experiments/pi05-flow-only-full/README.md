@@ -1,5 +1,7 @@
 # SpiritAI π0.5 双卡全参数训练工程复盘
 
+Full Flow 的已验证真机推理命令见 [SpiritAI 操作手册](../spiritai-inference-bridge/README.md)，手动参数与 YAML 来源见[推理参数说明](../spiritai-inference-bridge/parameters.md)。[实施记录](../spiritai-inference-bridge/implementation.md)保留最终训练 metadata、模拟检查及 2026-11-19 真机结果。
+
 从这里查阅本次 SpiritAI 训练迁移、NVIDIA PCIe 调优、checkpoint 恢复和主机内存排查的结论，并取得可独立使用的正式训练命令。记录覆盖 2026-10-26 至 2026-10-27 的有限步数实验；正式长训练由人工启动，收敛曲线和真机任务成功率需要在后续实验中补充。
 
 **2026-10-28 更新：** 正式首阶段在完成 506 步后，因 8 个 DataLoader 子进程的主机内存增长触发 Ray 95% 阈值而退出。原有短测未覆盖这一问题；下方配置仍是吞吐对照结果，完整 recipe 的长程稳定性需要修复后重验。重启前先阅读[故障复盘](2026-10-28-loader-memory-failure.md)。

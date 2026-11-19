@@ -1,5 +1,6 @@
 defaults:
   - _spiritai_pi05_subtask
+  - _spiritai_pi05_deploy
   - _self_
 
 hydra:
@@ -7,37 +8,10 @@ hydra:
     - file://${oc.env:EMBODIED_PATH}/config/
 
 runner:
-  rtc:
-    bootstrap_timeout_s: 30.0
-    request_timeout_s: 1.2
-    shutdown_timeout_s: 15.0
-    warmup_requests: 2
-    stop_hold_steps: 2
-    require_subtask_eos: true
   logger:
     experiment_name: spiritai_pi05_subtask_deploy
-
-env:
-  eval:
-    auto_reset: false
-    keyboard_reward_wrapper: null
-    override_cfg:
-      robot_url: ws://172.16.0.30:8766
-      source_hz: 30.0
-      task_description: Use both grippers to erect carton blank from partially opened box, fold and press both side walls inward to form open box body, and then place formed box in right side placement area on table.
-      image_height: 240
-      image_width: 320
-      zero_base_actions: true
-      execution_enabled: false
-      defer_external_following: true
-      require_execution_capabilities: true
-      max_base_speed: 0.0
-      gripper_min: 0.0
-      gripper_max: 0.1
 
 rollout:
   model:
     openpi:
-      num_images_in_input: 3
-      embed_dtype: bf16
-      validate_deployment: true
+      policy_kind: explicit_subtask

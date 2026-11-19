@@ -1,0 +1,820 @@
+{
+  "recorded_at_utc": "2026-11-18T03:01:20.921567+00:00",
+  "base_head": "f1d402ae3c3821ef9fa1f1581837453e49f33b82",
+  "branch": "feature/spiritai-unified-inference-bridge",
+  "hardware": "NVIDIA RTX PRO 5000 Blackwell 48 GiB; one model/rollout GPU per invocation; sequential policy checks.",
+  "environment": {
+    "python": "3.11.14",
+    "venv": "/home/deng/Documents/codebase/RLinf/.venv",
+    "additional_protocol_dependency": "msgpack-numpy==0.4.8"
+  },
+  "training_started": false,
+  "robot_connected": false,
+  "original_robot_source_modified": false,
+  "weights_rewritten": false,
+  "unit_checks": [
+    {
+      "command": "PYTHONPATH=.:tests:tests/unit_tests .venv/bin/python -m pytest -q tests/unit_tests/test_models.py -k \"spiritai or subtask_planning_state\"",
+      "passed": 7
+    },
+    {
+      "command": "PYTHONPATH=.:tests:tests/unit_tests .venv/bin/python -m pytest -q tests/unit_tests/test_robotics.py -k spiritai",
+      "passed": 5
+    },
+    {
+      "command": "PYTHONPATH=.:tests:tests/unit_tests .venv/bin/python -m pytest -q tests/unit_tests/test_real_env.py -k \"spiritai or rtc_session\"",
+      "passed": 14
+    }
+  ],
+  "static_checks": {
+    "ruff_preview": "passed",
+    "ruff_format": "passed",
+    "git_diff_check": "passed",
+    "sphinx_en": "0 retained warnings",
+    "sphinx_zh": "0 retained warnings",
+    "rst_markup": "passed",
+    "doc_symbols": "26 pre-existing unresolved RST symbol references recorded during research; none in changed sections"
+  },
+  "deployment_weights": {
+    "flow_only": {
+      "path": "/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000/actor/model_state_dict/full_weights.pt",
+      "size_bytes": 13413970310,
+      "sha256": "ac090b4064c4d1c4f60a73f6da7b44528b3aa02c87767f5dd14d1d0de9f69900",
+      "tensor_count": 667
+    },
+    "explicit_subtask": {
+      "path": "/home/deng/Documents/codebase/RLinf/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000/full_weights.pt",
+      "size_bytes": 13413956230,
+      "sha256": "5b378d56060897499a47aca87aec58f0bc48e74ee165c6cbc7d4fd8fc7b69bf1",
+      "tensor_count": 667
+    }
+  },
+  "robot_compatibility": {
+    "source_root": "/home/deng/Documents/codebase/robot_server_code",
+    "files": {
+      "mozrobot.py": {
+        "source_sha256": "464e3d8f1db9f2c0374cbd88a4fda2ae79767aef7389a927c08fee50e3ffce17",
+        "patched_sha256": "de7f93ef36f80b47984000fb33d2ac65eda427bdba527dbc7009c270aef9a7d8"
+      },
+      "server.py": {
+        "source_sha256": "2fca22e0cffe72773858049f2ece43627faf94394612641c60f35255c6da0c7f",
+        "patched_sha256": "5fc600426233c4b767016cf10596cb9b3189093d19b77dbeb6fa6babe656f2f8"
+      }
+    },
+    "applied_to_robot": false
+  },
+  "cases": {
+    "full-ctrl-c": {
+      "policy_kind": "flow_only",
+      "returncode": 1,
+      "sdk_action_rows": 13,
+      "steps": 11,
+      "aborts": [
+        {
+          "event": "abort",
+          "monotonic_s": 782458.263706765,
+          "session_id": "16cef6e0ce934d988f4b6cd88e0956da",
+          "error": "InterruptedError: RTC driver requested stop: SIGINT"
+        }
+      ],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 3,
+      "replan_seconds_percentiles": {},
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/full-ctrl-c/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_full_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:38027",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/full-ctrl-c",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/full-ctrl-c/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "72e05b31dd0e700383794a1fe6348b56b0391b677ff7f32a7365769f578fff69",
+      "trace_counts": {
+        "step": 11,
+        "response": 3,
+        "abort": 1,
+        "hold": 2,
+        "response_discarded": 0,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 0.4001391609199345,
+      "effective_tick_hz": 24.991305467351996,
+      "planner_generations": 0,
+      "generated_subtasks": [],
+      "all_recorded_plans_eos_terminated": null
+    },
+    "full-execute-no-guidance": {
+      "policy_kind": "flow_only",
+      "returncode": 0,
+      "sdk_action_rows": 300,
+      "steps": 300,
+      "aborts": [],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 35,
+      "replan_seconds_percentiles": {
+        "50": 0.2364827609853819,
+        "95": 0.2575852257956285,
+        "99": 0.2598912349867169
+      },
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/full-execute-no-guidance/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_full_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:37375",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=false",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/full-execute-no-guidance",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/full-execute-no-guidance/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "6781a3477c50c8aa7b69ef85a1a85680128d9298960e4f1de1707bc4fcd37e0b",
+      "trace_counts": {
+        "step": 300,
+        "response": 35,
+        "abort": 0,
+        "hold": 0,
+        "response_discarded": 1,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 11.731935955001973,
+      "effective_tick_hz": 25.48598979288834,
+      "all_replans_seconds_percentiles": {
+        "50": 0.2364827609853819,
+        "95": 0.2575852257956285,
+        "99": 0.2598912349867169
+      },
+      "planner_generations": 0,
+      "generated_subtasks": [],
+      "all_recorded_plans_eos_terminated": null
+    },
+    "full-observe": {
+      "policy_kind": "flow_only",
+      "returncode": 0,
+      "sdk_action_rows": 0,
+      "steps": 300,
+      "aborts": [],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/full-observe/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_full_deploy",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:33317",
+          "env.eval.override_cfg.execution_enabled=false",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/full-observe",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": "1"
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/full-observe/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "0305127aab64311e5bfd019fb0c723c9f1d3e831f5d6f1118c9c1bfe66f68ec8",
+      "trace_counts": {
+        "step": 300,
+        "response": 35,
+        "abort": 0,
+        "hold": 0,
+        "response_discarded": 1,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 11.69761301507242,
+      "effective_tick_hz": 25.560770356716137,
+      "all_replans_seconds_percentiles": {
+        "50": 0.23697619198355824,
+        "95": 0.24643024946562947,
+        "99": 0.24914145799702964
+      },
+      "planner_generations": 0,
+      "generated_subtasks": [],
+      "all_recorded_plans_eos_terminated": null
+    },
+    "full-sigint": {
+      "policy_kind": "flow_only",
+      "returncode": 1,
+      "sdk_action_rows": 13,
+      "steps": 11,
+      "aborts": [
+        {
+          "event": "abort",
+          "monotonic_s": 782335.019994812,
+          "session_id": "4fe0f30fad914a59bb9f0a624697dafe",
+          "error": "InterruptedError: RTC driver requested stop: SIGINT"
+        }
+      ],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 3,
+      "replan_seconds_percentiles": {},
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/full-sigint/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_full_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:45233",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/full-sigint",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/full-sigint/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "6f562e8fead33825340645425f9123c482378c4cc980d9bafc0d7a9e65480a95",
+      "trace_counts": {
+        "step": 11,
+        "response": 3,
+        "abort": 1,
+        "hold": 2,
+        "response_discarded": 0,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 0.4008025500224903,
+      "effective_tick_hz": 24.949941060601706,
+      "planner_generations": 0,
+      "generated_subtasks": [],
+      "all_recorded_plans_eos_terminated": null
+    },
+    "full-soak": {
+      "policy_kind": "flow_only",
+      "returncode": 0,
+      "sdk_action_rows": 18050,
+      "steps": 18050,
+      "aborts": [],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 2007,
+      "replan_seconds_percentiles": {
+        "50": 0.2407378875068389,
+        "95": 0.2602835393277928,
+        "99": 0.2715876455244143
+      },
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/full-soak/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_full_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:41979",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=18050",
+          "env.eval.max_episode_steps=18050",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/full-soak",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/full-soak/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "06656e6d71087e2272192a3459c4b1da1a5d2cddbf99514e3fb896feaa4e5d0f",
+      "trace_counts": {
+        "step": 18050,
+        "response": 2007,
+        "abort": 0,
+        "hold": 0,
+        "response_discarded": 1,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 710.1044311050791,
+      "effective_tick_hz": 25.417388216986303,
+      "all_replans_seconds_percentiles": {
+        "50": 0.2407378875068389,
+        "95": 0.2602835393277928,
+        "99": 0.2715876455244143
+      },
+      "planner_generations": 0,
+      "generated_subtasks": [],
+      "all_recorded_plans_eos_terminated": null
+    },
+    "full-warmup-timeout": {
+      "policy_kind": "flow_only",
+      "returncode": 1,
+      "sdk_action_rows": 0,
+      "steps": 0,
+      "aborts": [
+        {
+          "event": "abort",
+          "monotonic_s": 782226.045870705,
+          "session_id": "cca0368595be467abbdd9cb6e164e14e",
+          "error": "TimeoutError: RTC warmup request 0 exceeded 0.010s; late actions must be discarded."
+        }
+      ],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 0,
+      "replan_seconds_percentiles": {},
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/full-warmup-timeout/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_full_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261028_095838-spiritai_foldbox_pi05_full_bs64/spiritai_foldbox_pi05_full_bs64/checkpoints/global_step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/flow_only/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:46487",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=0.01",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/full-warmup-timeout",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/full-warmup-timeout/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "98df9463c3d0a2a4d13a0ad6561808ada24a0ed7fc2d7cbc84022a9fb347eee3",
+      "trace_counts": {
+        "step": 0,
+        "response": 0,
+        "abort": 1,
+        "hold": 0,
+        "response_discarded": 0,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 0,
+      "effective_tick_hz": null,
+      "planner_generations": 0,
+      "generated_subtasks": [],
+      "all_recorded_plans_eos_terminated": null
+    },
+    "lora-execute": {
+      "policy_kind": "explicit_subtask",
+      "returncode": 0,
+      "sdk_action_rows": 300,
+      "steps": 300,
+      "aborts": [],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/lora-execute/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_subtask_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:43023",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/lora-execute",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/lora-execute/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "019ff4bb84718ce5331cefcdc3d52c02c52d56a3559399f9a30c34824515f4ae",
+      "trace_counts": {
+        "step": 300,
+        "response": 23,
+        "abort": 0,
+        "hold": 0,
+        "response_discarded": 1,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 11.792733525973745,
+      "effective_tick_hz": 25.35459648447463,
+      "all_replans_seconds_percentiles": {
+        "50": 0.3316589110181667,
+        "95": 1.0611535688396543,
+        "99": 1.0919180481787771
+      },
+      "planner_cache_hit_seconds_percentiles": {
+        "50": 0.32702187704853714,
+        "95": 0.36705838539637625,
+        "99": 0.36876971782185136
+      },
+      "planner_cache_miss_seconds_percentiles": {
+        "50": 1.0567751539638266,
+        "95": 1.0894892734941095,
+        "99": 1.0975851891096682
+      },
+      "planner_generations": 7,
+      "generated_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "all_recorded_plans_eos_terminated": true
+    },
+    "lora-observe": {
+      "policy_kind": "explicit_subtask",
+      "returncode": 0,
+      "sdk_action_rows": 0,
+      "steps": 300,
+      "aborts": [],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 26,
+      "replan_seconds_percentiles": {
+        "50": 0.2369541539810598,
+        "95": 0.8077389192301779,
+        "99": 0.821597182082478
+      },
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/lora-observe/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_subtask_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:45657",
+          "env.eval.override_cfg.execution_enabled=false",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/lora-observe",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/lora-observe/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "31b576ded9a2605beb3008ea1faba72f0504162698839c3fd32cfc7bfb263327",
+      "trace_counts": {
+        "step": 300,
+        "response": 26,
+        "abort": 0,
+        "hold": 0,
+        "response_discarded": 0,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 11.736803411040455,
+      "effective_tick_hz": 25.47542031067333,
+      "all_replans_seconds_percentiles": {
+        "50": 0.2369541539810598,
+        "95": 0.8077389192301779,
+        "99": 0.821597182082478
+      },
+      "planner_cache_hit_seconds_percentiles": {
+        "50": 0.23279105906840414,
+        "95": 0.2599505429388955,
+        "99": 0.2650237445952371
+      },
+      "planner_cache_miss_seconds_percentiles": {
+        "50": 0.7728053600294515,
+        "95": 0.8204406370525248,
+        "99": 0.8239102721423842
+      },
+      "planner_generations": 8,
+      "generated_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "all_recorded_plans_eos_terminated": true
+    },
+    "lora-replan-timeout": {
+      "policy_kind": "explicit_subtask",
+      "returncode": 1,
+      "sdk_action_rows": 42,
+      "steps": 40,
+      "aborts": [
+        {
+          "event": "abort",
+          "monotonic_s": 782282.307739908,
+          "session_id": "81ce24fa5b094f94ad7460b68ee516c0",
+          "error": "TimeoutError: RTC replan request 3 exceeded 1.200s; late actions must be discarded."
+        }
+      ],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 3,
+      "replan_seconds_percentiles": {},
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/lora-replan-timeout/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_subtask_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:44289",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=1500",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/lora-replan-timeout",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/lora-replan-timeout/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "d2edde3dcddea47f7c41fdde1477c8df08661ff6135945e53def00158fa26d64",
+      "trace_counts": {
+        "step": 40,
+        "response": 3,
+        "abort": 1,
+        "hold": 2,
+        "response_discarded": 0,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 1.50555264193099,
+      "effective_tick_hz": 25.90410917148631,
+      "planner_generations": 1,
+      "generated_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "all_recorded_plans_eos_terminated": true
+    },
+    "lora-sdk-error": {
+      "policy_kind": "explicit_subtask",
+      "returncode": 1,
+      "sdk_action_rows": 11,
+      "steps": 11,
+      "aborts": [
+        {
+          "event": "abort",
+          "monotonic_s": 782389.702399856,
+          "session_id": "369943a0bb02460d837a569becba0ea0",
+          "error": "RuntimeError: Robot action execution failed: RuntimeError: injected SDK dispatch failure"
+        }
+      ],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 3,
+      "replan_seconds_percentiles": {},
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/lora-sdk-error/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_subtask_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:42655",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=300",
+          "env.eval.max_episode_steps=300",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/lora-sdk-error",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/lora-sdk-error/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "d936c3585fc37ef4f1fd7250102c243e9722bd1f4af90045e3bd6be9cda9d653",
+      "trace_counts": {
+        "step": 11,
+        "response": 3,
+        "abort": 1,
+        "hold": 0,
+        "response_discarded": 0,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 0.3908995169913396,
+      "effective_tick_hz": 25.582021888815866,
+      "planner_generations": 1,
+      "generated_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "all_recorded_plans_eos_terminated": true
+    },
+    "lora-soak": {
+      "policy_kind": "explicit_subtask",
+      "returncode": 0,
+      "sdk_action_rows": 18050,
+      "steps": 18050,
+      "aborts": [],
+      "closed": true,
+      "external_following_after_exit": false,
+      "real_robot_connected": false,
+      "inference_requests": 1388,
+      "replan_seconds_percentiles": {
+        "50": 0.24574352393392473,
+        "95": 0.7991338639520109,
+        "99": 0.8158176794601606
+      },
+      "checks_passed": true,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/lora-soak/summary.json",
+      "command": {
+        "command": [
+          "/home/deng/Documents/codebase/RLinf/.venv/bin/python",
+          "/home/deng/Documents/codebase/RLinf/evaluations/eval_embodied_agent.py",
+          "--config-path",
+          "realworld",
+          "--config-name",
+          "realworld_spiritai_eval_pi05_subtask_deploy",
+          "cluster.component_placement.rollout=1",
+          "rollout.model.model_path=/home/deng/Documents/codebase/RLinf/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000",
+          "rollout.model.openpi.deployment_metadata_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/openpi_deployment.json",
+          "rollout.model.openpi_data.norm_stats_path=/home/deng/Documents/codebase/RLinf/model_checkpoints/spiritai_deploy/explicit_subtask/norm_stats.json",
+          "env.eval.override_cfg.robot_url=ws://127.0.0.1:38571",
+          "env.eval.override_cfg.execution_enabled=true",
+          "env.eval.max_steps_per_rollout_epoch=18050",
+          "env.eval.max_episode_steps=18050",
+          "runner.rtc.inject_delay_ms=0",
+          "runner.rtc.bootstrap_timeout_s=30",
+          "rollout.model.openpi.rtc_enabled=true",
+          "runner.logger.log_path=/home/deng/Documents/codebase/RLinf/logs/inference/spiritai_bridge_20261118/lora-soak",
+          "runner.logger.logger_backends=[]"
+        ],
+        "CUDA_VISIBLE_DEVICES": null
+      },
+      "trace_path": "logs/inference/spiritai_bridge_20261118/lora-soak/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "b8738801643c563b240cd3af3a5b715bd711ed5abd19522d943e331d55a9091e",
+      "trace_counts": {
+        "step": 18050,
+        "response": 1388,
+        "abort": 0,
+        "hold": 0,
+        "response_discarded": 1,
+        "closed": 1,
+        "close_error": 0
+      },
+      "control_elapsed_seconds": 703.9804127120879,
+      "effective_tick_hz": 25.6384974270323,
+      "all_replans_seconds_percentiles": {
+        "50": 0.24574352393392473,
+        "95": 0.7991338639520109,
+        "99": 0.8158176794601606
+      },
+      "planner_cache_hit_seconds_percentiles": {
+        "50": 0.23851270804880187,
+        "95": 0.25689306742860935,
+        "99": 0.2672713082283735
+      },
+      "planner_cache_miss_seconds_percentiles": {
+        "50": 0.7748825749149546,
+        "95": 0.8113409139914438,
+        "99": 0.8262166012078523
+      },
+      "planner_generations": 462,
+      "generated_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "all_recorded_plans_eos_terminated": true
+    },
+    "protocol": {
+      "protocol_checks_passed": true,
+      "real_robot_connected": false,
+      "summary_path": "logs/inference/spiritai_bridge_20261118/protocol/summary.json"
+    }
+  },
+  "gpu_memory_samples": [
+    {
+      "at_utc": "2026-11-18T02:45:23.055148+00:00",
+      "phase": "full-soak",
+      "nvidia_smi": "index, memory.used [MiB], utilization.gpu [%]\n0, 531 MiB, 0 %\n1, 7458 MiB, 3 %"
+    },
+    {
+      "at_utc": "2026-11-18T02:54:36.706863+00:00",
+      "phase": "lora-soak",
+      "nvidia_smi": "index, memory.used [MiB], utilization.gpu [%]\n0, 531 MiB, 0 %\n1, 7464 MiB, 47 %"
+    }
+  ],
+  "soak_complete": true,
+  "source_sha256": {
+    "evaluations/realworld/_spiritai_pi05_deploy.yaml": "e10e9cde0675984036377801fdc2874b6b2aec62e647837122bdd6225ba3f974",
+    "evaluations/realworld/realworld_spiritai_eval_pi05_full_deploy.yaml": "58c077889601f7845c5e6ea3313896bf60f48314287582f1821d34dc5488faef",
+    "evaluations/realworld/realworld_spiritai_eval_pi05_subtask_deploy.yaml": "de7c4fa91d6cca4188672dbdcd536f0b88fb3d6312dd8fb0935e1f9a31f41bb7",
+    "rlinf/models/embodiment/openpi/checkpoint.py": "762cb089530c4b59b7fe893f9c6766b20778e875633df59fb703a6739cc78569",
+    "rlinf/models/embodiment/openpi/__init__.py": "5accdfc7c8f7d90be3b63d0c0a230225b39bb9fabf84dd6b8b762d69cedc4c00",
+    "rlinf/models/embodiment/openpi/tasks/eval.py": "e2a66214cf4d663fd683ec639cb3036385c2ad0655229c542f271adf93c729ca",
+    "rlinf/utils/ckpt_convertor/openpi/prepare_deployment.py": "f65a97b50ec1f3f63037969f8e417b04e4c201a8a9bd272a74789c07d0c1d7bf",
+    "rlinf/envs/real/spiritai/cartesian.py": "56cca369f98d490ab6acea143103bf86c7efe3fdd990627c0bb72241ad2f8db6",
+    "rlinf/runners/embodied_eval_runner.py": "afa011a220abf300922c07287d815ce719826437e968c93f16feaf718e975672",
+    "rlinf/workers/env/rtc_env_worker.py": "338aa92f1b7f52344225e8ad6defbdbf4676d66f6c036354bdf4d66c199d2820",
+    "toolkits/realworld_check/check_spiritai.py": "dba005fdb8a521b165d2c5991e1ad03cb7d38cf07a1079e161d9e78b5934b3b2",
+    "toolkits/realworld_check/prepare_spiritai_server.py": "32bab0ddb7aff47d03c8e69fc42acc25ac758fd589dc9928784290dc9ff7bb40",
+    "tests/e2e_tests/evaluations/spiritai_bridge_check.py": "9b9ed04ab3d11da8bc0213d42c57b3d333d0958fda1b19892819dd931499b5ae",
+    "tests/robot_mocks/spiritai_container.py": "2f9862e94352b8473709be166671dd683e8b1eb5b40af0cf68cb7a3624632fb2"
+  },
+  "limits": [
+    "Protocol and bridge checks use actual reviewed robot_server source but fake SDK/cameras on loopback.",
+    "A fixed recorded observation is reused during soak; this is not a physical folding-success evaluation.",
+    "Running robot container version, SDK units/frames and real network timing remain unverified.",
+    "SIGINT is tested against the driver PID and its process group; hard-kill/node failure is outside that cleanup guarantee.",
+    "Sphinx excludes autodoc import warnings in the docs-only environment and does not render experiment Markdown.",
+    "This manifest records a base commit plus current source fingerprints; no commit or push was performed."
+  ]
+}

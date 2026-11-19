@@ -1,0 +1,164 @@
+{
+  "recorded_at_utc": "2026-11-19T08:13:38.539746+00:00",
+  "scope": "Full Flow hardware inference, 2026-11-19; documentation update only.",
+  "policy_kind": "flow_only",
+  "checkpoint_step": 45000,
+  "gpu_hardware_rank": 1,
+  "robot_endpoint": "ws://172.16.0.30:8766",
+  "workstation_interface": "enp44s31f6",
+  "workstation_ipv4": "172.16.0.50/24",
+  "robot_deployment": {
+    "evidence_source": "User supplied container hashes, successful before/after checks, and strict preflight output.",
+    "version": "robot-server/0.3.1-rlinf-compat",
+    "cartesian_rotation": "rotvec",
+    "cart_dim": 23,
+    "target_hz": 120.0,
+    "execution_capabilities": {
+      "single_step_cartesian": true,
+      "tracked_completion": true,
+      "cancel_actions": true
+    },
+    "files": {
+      "mozrobot.py": {
+        "source_sha256": "464e3d8f1db9f2c0374cbd88a4fda2ae79767aef7389a927c08fee50e3ffce17",
+        "patched_sha256": "de7f93ef36f80b47984000fb33d2ac65eda427bdba527dbc7009c270aef9a7d8"
+      },
+      "server.py": {
+        "source_sha256": "2fca22e0cffe72773858049f2ece43627faf94394612641c60f35255c6da0c7f",
+        "patched_sha256": "5fc600426233c4b767016cf10596cb9b3189093d19b77dbeb6fa6babe656f2f8"
+      }
+    },
+    "source_package_sha256": "03ba1bd176b8e76618cb379bd176309e34b5bf27046e88bcdd18b551af13b0ce"
+  },
+  "configured_defaults": {
+    "env.eval.max_steps_per_rollout_epoch": 3000,
+    "env.eval.max_episode_steps": 3000,
+    "env.eval.override_cfg.execution_enabled": false
+  },
+  "runs": [
+    {
+      "label": "preview",
+      "run_directory": "logs/20261119-15:12:23-realworld_spiritai_eval_pi05_full_deploy",
+      "trace_path": "logs/20261119-15:12:23-realworld_spiritai_eval_pi05_full_deploy/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "dc8e4267563adca3f74d47686c6e76f4a880f1777b8f08f5b1d312acd23163c1",
+      "execution_enabled": false,
+      "all_control_records_match_execution_mode": true,
+      "steps": 300,
+      "first_to_last_step_seconds": 11.672036315001606,
+      "effective_tick_hz": 25.61678116231588,
+      "responses": 35,
+      "accepted_replan_responses": 32,
+      "guided_replans": 32,
+      "inference_seconds_percentiles": {
+        "50": 0.24231208899982448,
+        "95": 0.26035411694792854,
+        "99": 0.2630731190414008
+      },
+      "request_seconds_percentiles": {
+        "50": 0.2767021100007696,
+        "95": 0.311483404851424,
+        "99": 0.31319572661977874
+      },
+      "recorded_predictions_finite": true,
+      "recorded_limited_actions_finite": true,
+      "event_counts": {
+        "request": 36,
+        "response": 35,
+        "step": 300,
+        "abort": 0,
+        "hold": 0,
+        "closed": 1,
+        "close_error": 0,
+        "response_discarded": 1
+      },
+      "last_event": "closed"
+    },
+    {
+      "label": "short_motion",
+      "run_directory": "logs/20261119-15:45:35-realworld_spiritai_eval_pi05_full_deploy",
+      "trace_path": "logs/20261119-15:45:35-realworld_spiritai_eval_pi05_full_deploy/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "4d1b09c03a290edd40cc64029c1e9a9a82f4b0dc9f42ea8ba9a40963d0df1271",
+      "execution_enabled": true,
+      "all_control_records_match_execution_mode": true,
+      "steps": 50,
+      "first_to_last_step_seconds": 1.9453279080007633,
+      "effective_tick_hz": 25.188555512143907,
+      "responses": 7,
+      "accepted_replan_responses": 4,
+      "guided_replans": 4,
+      "inference_seconds_percentiles": {
+        "50": 0.2657212129997788,
+        "95": 0.2756216260002475,
+        "99": 0.2765912764003224
+      },
+      "request_seconds_percentiles": {
+        "50": 0.3200686290001613,
+        "95": 0.3226017215001775,
+        "99": 0.3226428443002078
+      },
+      "recorded_predictions_finite": true,
+      "recorded_limited_actions_finite": true,
+      "event_counts": {
+        "request": 8,
+        "response": 7,
+        "step": 50,
+        "abort": 0,
+        "hold": 0,
+        "closed": 1,
+        "close_error": 0,
+        "response_discarded": 1
+      },
+      "last_event": "closed"
+    },
+    {
+      "label": "one_minute_motion",
+      "run_directory": "logs/20261119-15:55:06-realworld_spiritai_eval_pi05_full_deploy",
+      "trace_path": "logs/20261119-15:55:06-realworld_spiritai_eval_pi05_full_deploy/spiritai_pi05_full_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "08edae350db296161144e8b0e8254c2f81a06cfbe0e6dddcbdc78db2e30044bd",
+      "execution_enabled": true,
+      "all_control_records_match_execution_mode": true,
+      "steps": 1500,
+      "first_to_last_step_seconds": 58.96856899600243,
+      "effective_tick_hz": 25.42032180061245,
+      "responses": 168,
+      "accepted_replan_responses": 165,
+      "guided_replans": 165,
+      "inference_seconds_percentiles": {
+        "50": 0.24105759700250928,
+        "95": 0.2597454449991346,
+        "99": 0.26901525563938766
+      },
+      "request_seconds_percentiles": {
+        "50": 0.2786400080003659,
+        "95": 0.30745660560205573,
+        "99": 0.32072215004169263
+      },
+      "recorded_predictions_finite": true,
+      "recorded_limited_actions_finite": true,
+      "event_counts": {
+        "request": 169,
+        "response": 168,
+        "step": 1500,
+        "abort": 0,
+        "hold": 0,
+        "closed": 1,
+        "close_error": 0,
+        "response_discarded": 1
+      },
+      "last_event": "closed"
+    }
+  ],
+  "operator_confirmation": "User confirmed robot movement in the short run and that the real-robot inference chain works.",
+  "limits": [
+    "Counts, timing and finite recorded commands come from local RTC JSONL; operator observations are separately attributed.",
+    "First-to-last step span excludes weight loading, warmup and the first tick duration.",
+    "This is inference-chain verification, not a quantified folding-success or box-generalization study.",
+    "No further inference, robot requests or training were launched while documenting these runs."
+  ],
+  "logging_issue": {
+    "stage": "MetricLogger/wandb.init before runner.init_workers",
+    "default_host": "api.wandb.ai",
+    "credential_host": "api.forge.coreweave.com",
+    "resolution": "Disable optional inference backend with runner.logger.logger_backends=[] or explicitly set WANDB_BASE_URL."
+  }
+}

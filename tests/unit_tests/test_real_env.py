@@ -5010,9 +5010,8 @@ def test_spiritai_limits_geodesic_rotation_and_translation_before_dispatch():
             )
         finally:
             env.close()
-        assert [message["type"] for message in server.messages][-3:] == [
+        assert [message["type"] for message in server.messages][-2:] == [
             "cancel_actions",
-            "get_status",
             "set_external_following",
         ]
 
@@ -5085,6 +5084,50 @@ def test_rtc_session_rejects_stale_failed_and_late_responses(failure):
     with pytest.raises((RuntimeError, TimeoutError, ValueError)):
         session.accept(reply, now)
     assert session.actions is None
+
+
+def test_spiritai_close_releases_following_after_post_ack_execution_error():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.envs.real.spiritai import SpiritaiCartesianEnv
+
+    with SpiritaiServer() as server:
+        env = SpiritaiCartesianEnv(
+            {
+                "robot_url": server.url,
+                "enable_external_following": True,
+                "image_height": 4,
+                "image_width": 5,
+            }
+        )
+        env.reset()
+        assert server.following
+        server.execution_error = "SDK dispatch failed after acknowledgement"
+        env.close()
+        assert not server.following
+        assert not env.client.connected
+
+
+def test_spiritai_whole_body_profile_rejects_endpoint_without_torso():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.envs.real.spiritai import SpiritaiCartesianEnv
+
+    with SpiritaiServer() as server:
+        server.cart_dim = 14
+        env = SpiritaiCartesianEnv(
+            {
+                "robot_url": server.url,
+                "execution_enabled": True,
+                "enable_external_following": True,
+                "min_cartesian_dim": 20,
+            }
+        )
+        with pytest.raises(ValueError, match="torso commands would be lost"):
+            env.reset()
+        assert not server.commands
+        assert not server.following
+        assert not env.client.connected
 
 
 def test_spiritai_container_registration_preserves_local_ros_processes():

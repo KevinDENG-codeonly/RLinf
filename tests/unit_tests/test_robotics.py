@@ -7210,3 +7210,26 @@ def test_spiritai_client_checks_execution_after_accepted_ack():
             assert server.messages[-1]["type"] == "cancel_actions"
         finally:
             client.close()
+
+
+def test_spiritai_preflight_releases_read_only_connection():
+    from robot_mocks.spiritai import SpiritaiServer
+
+    from rlinf.robotics.spiritai import SpiritaiClient
+    from toolkits.realworld_check.check_spiritai import check_spiritai
+
+    with SpiritaiServer() as server:
+        report = check_spiritai(server.url, require_execution=True)
+        assert report["actions_sent"] == 0
+        assert report["following_changed"] is False
+        assert len(report["state"]) == 25
+        assert {message["type"] for message in server.messages} == {
+            "get_obs",
+            "get_status",
+        }
+        client = SpiritaiClient(server.url)
+        try:
+            client.connect()
+            assert client.connected
+        finally:
+            client.close()

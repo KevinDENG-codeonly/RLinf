@@ -1,0 +1,79 @@
+{
+  "checked_at_utc": "2026-11-19T08:24:08.782639+00:00",
+  "scope": "Full Flow operations/parameters/deployment documentation; no runtime configuration or source changes in this documentation update.",
+  "pages": [
+    "README.md",
+    "README.en.md",
+    "parameters.md",
+    "parameters.en.md",
+    "deployment.md",
+    "deployment.en.md",
+    "implementation.md",
+    "implementation.en.md"
+  ],
+  "checks": [
+    {
+      "command": "python3 .agents/skills/docs-check/build_docs.py",
+      "result": "passed",
+      "en_retained_warnings": 0,
+      "zh_retained_warnings": 0,
+      "limits": "Default docs harness filters unavailable autodoc imports; experiment Markdown is outside Sphinx."
+    },
+    {
+      "command": ".docs-venv/bin/python .agents/skills/docs-check/check_rst_markup.py",
+      "result": "passed"
+    },
+    {
+      "command": "python3 .agents/skills/docs-check/check_doc_symbols.py",
+      "result": "existing_failures",
+      "unresolved_names": 26,
+      "limits": "All findings are in unchanged RST pages; no new findings in this scope."
+    },
+    {
+      "command": "Hydra composition of Full Flow primary and command overrides",
+      "result": "passed",
+      "yaml_defaults": [
+        3000,
+        3000,
+        false
+      ],
+      "cli_values": [
+        1500,
+        1500,
+        true
+      ],
+      "resolved_keys_checked": 58
+    },
+    {
+      "command": "bash -n on documented shell blocks, without execution",
+      "result": "passed",
+      "blocks": 28
+    },
+    {
+      "command": "Local Markdown links, fences and bilingual commands",
+      "result": "passed"
+    },
+    {
+      "command": ".venv/bin/pre-commit run --files <reviewed files>",
+      "result": "passed",
+      "hooks": [
+        "ruff",
+        "ruff format",
+        "check committer signoff"
+      ]
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "new_inference_or_training_started": false,
+  "robot_connected_during_documentation": false,
+  "runtime_defaults_modified": false,
+  "new_unverified_hardware_instructions_added_for_other_policies": false,
+  "historical_evidence": [
+    "documentation_checks.json",
+    "implementation_validation.json",
+    "realworld_full_flow_20261119.json"
+  ]
+}

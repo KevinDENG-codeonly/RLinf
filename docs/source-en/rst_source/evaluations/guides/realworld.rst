@@ -394,114 +394,112 @@ FAQ
 SpiritAI Robot Container
 ------------------------
 
-Deploy the SpiritAI Cartesian checkpoint through the robot's existing
-WebSocket container with ``realworld_spiritai_eval_pi05_RTC.yaml``.
-Run the RLinf env and rollout workers on the GPU workstation; the container
-continues to own the robot's low-level control.
+Deploy one Full Flow or Explicit Subtask LoRA policy through the existing robot WebSocket container. Select one profile per run: one rollout worker holds the model on one GPU, and the CPU env worker owns the only robot connection. Both profiles use the native evaluation runner and RTC workers. The robot container owns cameras and SDK execution; ``runtime_setup=false`` preserves local ROS processes.
 
-The client speaks the existing MessagePack NumPy protocol:
-``hello``, ``get_obs``, ``get_status``, ``set_external_following``, and
-``send_command``. It checks Cartesian capabilities and sends ``kind: cart``
-commands. The 25-D policy output is mapped to the container's 14-, 20-, or
-23-D layout, omitting the two psi values. RTC dispatches one action row per
-tick while the rollout worker generates the next chunk.
+.. list-table:: Select a Policy
+   :header-rows: 1
+   :widths: 35 65
 
-Set the robot address, task instruction, checkpoint, and training-time stats:
+   * - Configuration
+     - Inference contract
+   * - ``realworld_spiritai_eval_pi05_full_deploy``
+     - Observation + overall instruction → Flow actions; hierarchy disabled.
+   * - ``realworld_spiritai_eval_pi05_subtask_deploy``
+     - Observation + overall → generated Subtask; observation + Subtask → Flow actions. Merge LoRA adapters first.
+
+Prepare the Checkpoint Records
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prepare a new deployment directory from the actual W&B ``config.yaml`` and ``wandb-metadata.json``. Full Flow also checks the normalization fingerprint against every rank's saved ``actor/data.pt`` loader signature. Subtask deployment uses the merged checkpoint's ``openpi_training.json``. Run this command for the chosen policy, replacing each path and ``POLICY_KIND`` with ``flow_only`` or ``explicit_subtask``:
 
 .. code-block:: bash
 
-   bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_RTC \
-     rollout.model.model_path=/path/to/checkpoints/global_step_90000 \
-     rollout.model.openpi_data.norm_stats_path=/path/to/foldbox_assets/norm_stats.json \
+   .venv/bin/python -m rlinf.utils.ckpt_convertor.openpi.prepare_deployment \
+     --policy-kind POLICY_KIND \
+     --ckpt /path/to/native_or_merged_checkpoint \
+     --training-config /path/to/wandb/run/files/config.yaml \
+     --launch-metadata /path/to/wandb/run/files/wandb-metadata.json \
+     --output /path/to/new_deployment_bundle
+
+This writes ``openpi_deployment.json`` and ``norm_stats.json`` while preserving source weights and historical training metadata. The manifest records training settings, source hashes, step, mode, and the complete weight-file SHA256. Startup validates the selected weights, normalization, state/token settings, and model geometry. Hashing a large checkpoint adds startup I/O. A recorded Git HEAD does not establish a clean historical working tree.
+
+For Full Flow, retain the native ``global_step_<N>/actor/model_state_dict/full_weights.pt`` layout and ``actor/data.pt`` during preparation. For Subtask LoRA, use the existing ``merge_lora`` exporter before preparation, then point to its merged output. Run the preparation tool only with trusted local checkpoint files. It rejects existing output directories and raw adapters.
+
+Check the Container Without Motion
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Read metadata, status, three RGB images, and the measured 25D state before starting the bridge:
+
+.. code-block:: bash
+
+   .venv/bin/python -m toolkits.realworld_check.check_spiritai \
+     --url ws://ROBOT_HOST:8766 --require-execution
+
+The check sends only ``get_status`` and ``get_obs``, then releases the exclusive connection. It checks execution capabilities without enabling following. Whole-body profiles require at least a 20D Cartesian endpoint so torso commands are retained. A 23D endpoint also includes zero base commands; the client removes the two psi values from the 25D policy action.
+
+This RLinf deployment adapter adds ``single_step_cartesian``, ``tracked_completion``, and ``cancel_actions`` under ``execution_capabilities``; they are not mandatory fields of the original OpenPI bridge. Missing declarations alone do not establish missing behavior: compare the actual server source before changing it. The compatible implementation bypasses multi-point interpolation for single rows, tracks the background SDK dispatch Future, and reports post-ACK errors in ``get_status.execution_error``. Cancellation acknowledges after further Python dispatch stops. Neither Future completion nor cancellation proves mechanical arrival or removes already-accepted controller targets. Replies echo ``request_id``.
+
+For the supported local server version, prepare a reviewed compatibility copy:
+
+.. code-block:: bash
+
+   .venv/bin/python -m toolkits.realworld_check.prepare_spiritai_server \
+     --source-root /path/to/robot_server_code \
+     --output /path/to/new_reviewed_server_copy
+
+The tool checks exact source and patched hashes, applies the archived compatibility patch to the new copy, and preserves the original source. It does not install or start the copy. Review the running container version and deploy matching code on the robot separately; capability flags alone do not establish execution behavior.
+
+Preview the Selected Policy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Start with observation-only mode. Use the chosen profile, checkpoint, prepared bundle, and robot address:
+
+.. code-block:: bash
+
+   PATH="$PWD/.venv/bin:$PATH" bash evaluations/run_eval.sh realworld \
+     realworld_spiritai_eval_pi05_full_deploy \
+     cluster.component_placement.rollout=0 \
+     rollout.model.model_path=/path/to/checkpoints/global_step_45000 \
+     rollout.model.openpi.deployment_metadata_path=/path/to/deployment/openpi_deployment.json \
+     rollout.model.openpi_data.norm_stats_path=/path/to/deployment/norm_stats.json \
      env.eval.override_cfg.robot_url=ws://ROBOT_HOST:8766 \
-     'env.eval.override_cfg.task_description="Fold the cardboard box"' \
-     env.eval.override_cfg.zero_base_actions=true
+     env.eval.max_steps_per_rollout_epoch=300 \
+     env.eval.max_episode_steps=300 \
+     env.eval.override_cfg.execution_enabled=false \
+     'runner.logger.logger_backends=[]'
 
-This connects to a physical robot. Reset reads the current pose; place the
-robot at the task's starting configuration beforehand. The default keyboard
-wrapper waits for ``a`` to start, accepts ``c`` for success and ``b`` for
-failure. Set ``env.eval.keyboard_device`` if automatic device selection does
-not find the intended keyboard. Construction does not connect or move the
-robot; resetting the evaluation opens the connection and enables external
-following as configured.
+This runs the policy with ``execution_enabled=false`` and leaves actions and following unchanged. Select one RLinf GPU hardware rank with ``cluster.component_placement.rollout``. To use Subtask LoRA, change the profile to ``realworld_spiritai_eval_pi05_subtask_deploy`` and supply its merged checkpoint and corresponding bundle. Run the policies separately; each uses one GPU and the same bridge.
 
-The adapter bounds arm/torso translation speed and SO(3) rotation angle per tick,
-gripper velocity, and base speed around measured state. Configure those
-limits under ``env.eval.override_cfg`` for the robot and task. The example
-sets base commands to zero for FoldBox. Match ``source_hz`` to the recorded
-data rate; the default is 30 Hz. Requests have a total send/receive deadline;
-a transport failure closes the session instead of reusing a stale reply.
-Closing an active env releases external following and closes its connection.
+The three env overrides are Hydra runtime settings, not model observations. YAML defaults are ``3000 / 3000 / false``. CLI values take precedence; omit them when those defaults suit the run, or persist Full-specific settings in ``realworld_spiritai_eval_pi05_full_deploy.yaml``. The two length limits have different owners:
 
-Keep the training state-token setting, token budget, camera order, and
-normalization statistics when loading a checkpoint. This deployment uses
-RLinf's ``approx`` RTC overlap guidance; it does not require training-time
-action-prefix conditioning. Measure latency and task success on the physical
-robot. See :doc:`../../guides/rtc` for the shared RTC controls and metrics.
+.. list-table:: Runtime Overrides
+   :header-rows: 1
+   :widths: 42 58
 
-Explicit Subtask Checkpoints
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   * - Parameter
+     - Effect
+   * - ``env.eval.max_steps_per_rollout_epoch``
+     - Worker control-loop budget per round. Current validation requires divisibility by action horizon 50.
+   * - ``env.eval.max_episode_steps``
+     - Environment episode limit that produces timeout truncation/done. It need not equal the worker budget.
+   * - ``env.eval.override_cfg.execution_enabled``
+     - False predicts/reads without dispatch; true submits robot actions after warmup/bootstrap.
 
-Use ``realworld_spiritai_eval_pi05_subtask_deploy`` to generate a subtask from the
-overall instruction and current observation, then generate actions from that
-subtask and observation. One GPU holds the complete merged policy. The env worker
-handles the robot connection on the same workstation; the robot container owns
-low-level execution. The SpiritAI env sets ``runtime_setup=false`` to register
-tasks without cleaning up local ROS processes.
+With one round and auto-reset disabled, the earlier limit normally ends the run. Set both to the intended tick count for aligned boundaries. Ticks count control steps, not model requests, Euler iterations or training updates. Changing length does not require changing ``source_hz`` or action horizon.
 
-Keep ``full_weights.pt``, ``openpi_training.json``, and ``norm_stats.json`` together
-in the merged checkpoint directory. The deployment checks model dimensions,
-text/state settings and normalization against training metadata. Set the paths
-and start in the default observation-only mode:
+Both profiles use three 320×240 RGB views, a 25D Cartesian state, state tokens, a 256-token context, 50-action chunks, ten Euler steps, BF16 with existing FP32 islands, and nominal 30 Hz control. The container/controller's 120 Hz rate is separate. Keep the overall instruction and normalization consistent with the task. Full Flow follows the established overall-only inference baseline even when historical training prompts contained a current step. Subtask LoRA generates its own text; ``planning_interval=3`` counts three action requests. Planner state resets at every episode, and a changed Subtask disables previous-chunk guidance.
 
-.. code-block:: bash
+Enable Execution and Inspect Shutdown
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   source .venv/bin/activate
-   CUDA_VISIBLE_DEVICES=0 bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_subtask_deploy \
-     rollout.model.model_path=/path/to/merged_pi05_subtask_lora \
-     rollout.model.openpi_data.norm_stats_path=/path/to/merged_pi05_subtask_lora/norm_stats.json \
-     env.eval.override_cfg.robot_url=ws://ROBOT_HOST:8766
+After verifying camera orientation, pose frames, gripper units, starting pose, and container behavior, append ``env.eval.override_cfg.execution_enabled=true`` to the preview command. This profile executes after warmup and bootstrap; it has no keyboard start gate. Following begins immediately before the first valid command. Translation, SO(3) rotation, and gripper rates are limited around measured state; base commands are zero. The demonstration gripper bounds ``[0, 0.1]`` need hardware validation.
 
-This connects to the container and runs the policy with
-``execution_enabled=false``. The client reads observations and status while
-leaving following mode and action dispatch unchanged. The profile uses three
-320×240 RGB cameras, a 25-D Cartesian state, 30 Hz control, 50-action chunks and
-10 Euler steps. Keep the overall instruction consistent with training; provide
-no fixed current subtask. ``planning_interval=3`` refreshes the planner every
-three action requests.
+For approximately one minute of Full Flow motion, set both length overrides to ``1500`` and execution to true after preflight. The verified 2026-11-19 hardware run completed 1500 ticks over 58.97 seconds between first/last steps, around 25.42 Hz, with no abort or close error. This is a measured-rate estimate, not a strict wall-clock timer; model loading and warmup are additional. Robot movement and inference-chain operation were confirmed by the operator, without claiming a quantified folding-success rate. Commands, per-field source locations, deployment history and trace evidence are maintained in repository ``docs/experiments/spiritai-inference-bridge/``.
 
-Before enabling execution, verify that the deployed container advertises
-``execution_capabilities.single_step_cartesian``, ``tracked_completion`` and
-``cancel_actions`` as true and implements each capability. A single-row command
-must bypass multi-point interpolation. Busy must track actual SDK completion,
-and execution errors must appear in ``get_status.execution_error``. The
-``cancel_actions`` request must acknowledge only after subsequent dispatch has
-stopped. Request responses echo ``request_id``.
+Warmup covers plain and ``approx`` Flow sampling. ``bootstrap_timeout_s=30`` bounds each warmup/bootstrap request, and ``request_timeout_s=1.2`` bounds replanning. Measure the budget on your GPU and network, including HL cache misses. Keep ``runner.rtc.enabled=true`` for asynchronous scheduling; ``rollout.model.openpi.rtc_enabled=false`` disables sampler guidance while retaining that controller. Diagnostics report actual guidance use in both policy modes. See :doc:`../../guides/rtc` for RTC behavior.
 
-After checking the image orientation, pose frame and gripper units, append
-``env.eval.override_cfg.execution_enabled=true`` to the command. This profile
-starts execution after warmup; it has no keyboard start gate. Following mode is
-enabled immediately before the first valid action. Reset reads the measured
-pose. Cartesian rotations use rotation vectors; translation and rotation rates
-are bounded around measured state, and base commands are zero. The example
-gripper command bounds ``[0, 0.1]`` come from demonstrations and require hardware
-validation.
+The env keeps one inference request in flight, rejects late or mismatched replies, and advances action indices by local monotonic time. Warmup/bootstrap failure closes without actions or holds. After a completed control tick, failure attempts at most two measured-pose holds, closes the connection, and reports ``rtc_aborted=1``. Closing attempts to release following even after an execution error. The runner reports failure after worker cleanup.
 
-Warmup exercises plain Flow and ``approx`` RTC sampling before bootstrap.
-``bootstrap_timeout_s=30`` bounds warmup and bootstrap;
-``request_timeout_s=1.2`` bounds replan requests. Measure the latter budget on
-your GPU and network. The env worker keeps one request in flight, rejects late
-or mismatched responses, and advances action indices by local monotonic time.
-After a completed control tick, failure triggers ``stop_hold_steps=2`` measured-pose holds and closes the
-session, and reports ``rtc_aborted=1``. The runner exits with an error after
-worker shutdown. Container cancellation stops subsequent SDK sends; the
-controller can continue holding its last target.
+During bounded evaluation, driver SIGINT, SIGTERM, and worker-failure notifications request an env stop through an RLinf Channel before exit. The driver waits up to ``shutdown_timeout_s`` for cleanup. Final pending predictions are discarded without delaying connection closure. Hard process/node failures still depend on container disconnect cancellation. Cancellation stops further SDK sends; it does not establish a motor emergency stop or remove the controller's last target.
 
-Warmup or bootstrap failure closes the session without enabling following or
-dispatching hold commands.
-
-Inspect ``<log_path>/<experiment_name>/rtc-env-0.jsonl`` for session/chunk IDs,
-generated text, EOS, latency, predicted and limited actions, measured states,
-hold attempts and cleanup. The profile retains W&B logging. Recorded-observation
-and loopback-container tests establish interface behavior; measure physical
-timing and task success separately.
+Inspect ``<log_path>/<experiment_name>/rtc-env-0.jsonl`` for session/chunk IDs, generated text/EOS, actual guidance, request/inference latency, predicted and limited commands, measured states, hold attempts, and ``closed`` or ``close_error``. YAML retains W&B logging, while the preview command disables that optional backend and keeps terminal/RTC JSONL output. To retain W&B, remove the backend override and set ``WANDB_BASE_URL`` to the API host matching existing credentials. A failure in ``MetricLogger → wandb.init`` occurs before worker initialization and weight loading. Full Flow hardware results establish the inference chain; evaluate physical task success separately.

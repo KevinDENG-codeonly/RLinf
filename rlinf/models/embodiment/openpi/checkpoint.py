@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 from typing import Any
@@ -23,6 +24,88 @@ from typing import Any
 from rlinf.utils.logging import get_logger
 
 logger = get_logger()
+
+DEPLOYMENT_FIELDS = (
+    "num_action_chunks",
+    "action_dim",
+    "use_proprio",
+    "openpi.config_name",
+    "openpi.num_images_in_input",
+    "openpi.action_chunk",
+    "openpi.action_env_dim",
+    "openpi.model_action_dim",
+    "openpi.max_token_len",
+    "openpi.discrete_state_input",
+    "openpi.paligemma_variant",
+    "openpi.action_expert_variant",
+    "openpi_data.zero_base_action_targets",
+)
+
+
+def file_sha256(path: str | pathlib.Path) -> str:
+    """Hash a local asset without loading it into memory."""
+    digest = hashlib.sha256()
+    with pathlib.Path(path).open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def validate_deployment(cfg: Any) -> dict[str, Any]:
+    """Validate policy mode, training contract, stats and deployment weights."""
+    from omegaconf import OmegaConf
+
+    kind = OmegaConf.select(cfg, "openpi.policy_kind", default="explicit_subtask")
+    if kind not in ("flow_only", "explicit_subtask"):
+        raise ValueError(f"Expected flow_only or explicit_subtask, got {kind!r}.")
+    manifest_path = OmegaConf.select(cfg, "openpi.deployment_metadata_path")
+    if not manifest_path:
+        if kind == "explicit_subtask":
+            return validate_hierarchical_deployment(cfg)
+        raise ValueError("Expected openpi.deployment_metadata_path for Full Flow.")
+    metadata = json.loads(pathlib.Path(manifest_path).expanduser().read_text())
+    if metadata.get("format_version") != 1 or metadata.get("policy_kind") != kind:
+        raise ValueError(
+            f"Expected deployment format_version=1 and policy_kind={kind!r}."
+        )
+    trained = OmegaConf.create(metadata["model"])
+    hierarchical = kind == "explicit_subtask"
+    if cfg.is_lora:
+        raise ValueError("Expected merged deployment weights with is_lora=false.")
+    for contract in (trained, cfg):
+        actual = bool(
+            OmegaConf.select(contract, "openpi.hierarchical.enabled", default=False)
+        )
+        if actual != hierarchical:
+            raise ValueError(
+                f"Expected hierarchy={hierarchical} for policy_kind={kind!r}."
+            )
+    fields = DEPLOYMENT_FIELDS
+    if hierarchical:
+        if metadata.get("text_template_version") != 1:
+            raise ValueError("Expected explicit subtask text_template_version=1.")
+        fields += ("openpi.hierarchical.max_subtask_tokens",)
+    for name in fields:
+        expected = OmegaConf.select(trained, name)
+        actual = OmegaConf.select(cfg, name)
+        if expected is None or actual != expected:
+            raise ValueError(
+                f"Expected deployment {name}={expected!r}, got {actual!r}."
+            )
+    stats = json.loads(
+        pathlib.Path(cfg.openpi_data.norm_stats_path).expanduser().read_text()
+    )
+    if stats != metadata["normalization"]:
+        raise ValueError(
+            "Expected deployment normalization identical to training records."
+        )
+    weights = resolve_full_weights(cfg.model_path)
+    identity = metadata["weights"]
+    if weights is None or weights.stat().st_size != identity["size_bytes"]:
+        raise ValueError("Expected deployment weights matching the recorded size.")
+    if file_sha256(weights) != identity["sha256"]:
+        raise ValueError("Expected deployment weights matching the recorded SHA256.")
+    return metadata
 
 
 def validate_hierarchical_deployment(cfg: Any) -> dict[str, Any]:

@@ -1,0 +1,20 @@
+defaults:
+  - _spiritai_pi05_rtc
+  - _spiritai_pi05_deploy
+  - _self_
+
+hydra:
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+runner:
+  logger:
+    experiment_name: spiritai_pi05_full_deploy
+
+rollout:
+  model:
+    model_path: /path/to/full_flow/global_step_45000
+    openpi:
+      policy_kind: flow_only
+      hierarchical:
+        enabled: false

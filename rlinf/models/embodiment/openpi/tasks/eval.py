@@ -182,12 +182,10 @@ class Pi0Eval(EnvIO, Pi0):
             )
         else:
             actions, result = self._predict_eval(observation, noise=noise, rng=rng)
+        result["rtc_guidance_applied"] = rtc_context is not None and self.rtc_enabled
         if self.hierarchical_cfg.enabled:
             state.action_chunks += 1
             result.update(planning_info)
-            result["rtc_guidance_applied"] = (
-                rtc_context is not None and self.rtc_enabled
-            )
         return actions, result
 
     def _predict_eval_with_rtc(

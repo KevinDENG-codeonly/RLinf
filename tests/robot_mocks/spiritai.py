@@ -28,6 +28,7 @@ class SpiritaiServer:
 
     def __init__(self):
         self.commands = []
+        self.cart_dim = 23
         self.messages = []
         self.following = False
         self.reject_commands = False
@@ -91,7 +92,7 @@ class SpiritaiServer:
                 {
                     "type": "hello",
                     "metadata": {
-                        "cart_dim": 23,
+                        "cart_dim": self.cart_dim,
                         "accepted_cart_dims": [14, 20, 23],
                         "max_chunk": 60,
                         "execution_capabilities": self.execution_capabilities,

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import signal
 import time
 import typing
 
@@ -64,30 +65,36 @@ class EmbodiedEvalRunner:
         # Channel direction convention (names follow the receiver, not the sender):
         #   rollout_channel: env -> rollout  (env sends obs/RTC requests, rollout receives)
         #   env_channel:     rollout -> env  (rollout sends actions/RTC responses, env receives)
-        env_handle: Handle = self.env.evaluate(
-            input_channel=self.env_channel,
-            rollout_channel=self.rollout_channel,
+        rtc = self.cfg.runner.get("rtc", {})
+        bounded_rtc = (
+            bool(rtc.get("enabled", False))
+            and float(rtc.get("request_timeout_s", 0)) > 0
         )
-        rollout_handle: Handle = self.rollout.evaluate(
-            input_channel=self.rollout_channel,
-            output_channel=self.env_channel,
-        )
-
-        env_results = env_handle.wait()
+        if bounded_rtc:
+            env_results, rollout_results = self._evaluate_bounded_rtc()
+        else:
+            env_handle: Handle = self.env.evaluate(
+                input_channel=self.env_channel,
+                rollout_channel=self.rollout_channel,
+            )
+            rollout_handle: Handle = self.rollout.evaluate(
+                input_channel=self.rollout_channel,
+                output_channel=self.env_channel,
+            )
+            env_results = env_handle.wait()
         env_decoupled_mode = self.cfg.runner.get("enable_decoupled_mode", False)
         if not env_decoupled_mode:
-            shutdown_timeout = float(
-                self.cfg.runner.get("rtc", {}).get("shutdown_timeout_s", 0)
-            )
-            if shutdown_timeout > 0:
-                deadline = time.monotonic() + shutdown_timeout
-                while not rollout_handle.done():
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError(
-                            f"RTC rollout did not stop within {shutdown_timeout}s after env completion."
-                        )
-                    time.sleep(0.01)
-            rollout_results = rollout_handle.wait()
+            if not bounded_rtc:
+                timeout = float(rtc.get("shutdown_timeout_s", 0))
+                if timeout > 0:
+                    deadline = time.monotonic() + timeout
+                    while not rollout_handle.done():
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError(
+                                "RTC rollout did not stop after env completion."
+                            )
+                        time.sleep(0.01)
+                rollout_results = rollout_handle.wait()
             rollout_metrics_list = [
                 results for results in rollout_results if results is not None
             ]
@@ -100,6 +107,70 @@ class EmbodiedEvalRunner:
         eval_metrics = compute_evaluate_metrics(env_metrics_list)
         eval_metrics.update(rollout_metrics)
         return eval_metrics
+
+    def _evaluate_bounded_rtc(self):
+        """Let the env close its connection before a signalled driver exits."""
+        control = Channel.create("RTCControl")
+        timeout = float(self.cfg.runner.rtc.shutdown_timeout_s)
+        if timeout <= 0:
+            raise ValueError(
+                f"Expected positive RTC shutdown_timeout_s, got {timeout}."
+            )
+        stop_reason = None
+        stop_sent_at = None
+        env_handle = rollout_handle = None
+
+        def request_stop(signum, frame):
+            nonlocal stop_reason
+            stop_reason = signal.Signals(signum).name
+
+        saved = {
+            sig: signal.getsignal(sig)
+            for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGUSR1)
+        }
+        for sig in saved:
+            signal.signal(sig, request_stop)
+        try:
+            env_handle = self.env.evaluate(
+                input_channel=self.env_channel,
+                rollout_channel=self.rollout_channel,
+                control_channel=control,
+            )
+            rollout_handle = self.rollout.evaluate(
+                input_channel=self.rollout_channel,
+                output_channel=self.env_channel,
+            )
+            while not env_handle.done():
+                if rollout_handle.done() and stop_reason is None:
+                    stop_reason = "rollout_finished_before_env"
+                if stop_reason is not None and stop_sent_at is None:
+                    control.put(stop_reason, key=0)
+                    stop_sent_at = time.monotonic()
+                if (
+                    stop_sent_at is not None
+                    and time.monotonic() - stop_sent_at >= timeout
+                ):
+                    raise TimeoutError(
+                        "RTC env did not acknowledge shutdown before the deadline."
+                    )
+                time.sleep(0.01)
+            env_results = env_handle.wait()
+            deadline = time.monotonic() + timeout
+            while not rollout_handle.done():
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("RTC rollout did not stop after env cleanup.")
+                time.sleep(0.01)
+            return env_results, rollout_handle.wait()
+        except BaseException:
+            if env_handle is not None and not env_handle.done():
+                control.put("driver_failure", key=0)
+                deadline = time.monotonic() + timeout
+                while not env_handle.done() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+            raise
+        finally:
+            for sig, handler in saved.items():
+                signal.signal(sig, handler)
 
     def run(self):
         start_time = time.time()

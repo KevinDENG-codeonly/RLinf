@@ -1931,3 +1931,124 @@ def test_spiritai_deployment_rejects_changed_training_shape_and_stats(
     stats.write_text(json.dumps({"norm_stats": {"state": {"mean": [2.0]}}}))
     with pytest.raises(ValueError, match="normalization identical"):
         validate_hierarchical_deployment(model_cfg)
+
+
+@pytest.mark.parametrize("kind", ["flow_only", "explicit_subtask"])
+def test_spiritai_preparation_binds_policy_training_stats_and_weights(
+    tmp_path, monkeypatch, kind
+):
+    import json
+
+    from hydra import compose, initialize_config_dir
+
+    from rlinf.models.embodiment.openpi.checkpoint import (
+        file_sha256,
+        validate_deployment,
+    )
+    from rlinf.utils.ckpt_convertor.openpi.prepare_deployment import prepare_deployment
+
+    root = Path(__file__).resolve().parents[2]
+    monkeypatch.setenv("EMBODIED_PATH", str(root / "examples/embodiment"))
+    name = "full" if kind == "flow_only" else "subtask"
+    with initialize_config_dir(
+        version_base="1.1", config_dir=str(root / "evaluations/realworld")
+    ):
+        config = compose(config_name=f"realworld_spiritai_eval_pi05_{name}_deploy")
+    model = config.rollout.model
+    assert config.cluster.component_placement.rollout == 0
+    assert model.precision == "bf16"
+    assert model.openpi.num_images_in_input == 3
+    assert config.env.eval.override_cfg.execution_enabled is False
+    checkpoint = tmp_path / "global_step_45000"
+    weights = checkpoint / (
+        "actor/model_state_dict/full_weights.pt"
+        if kind == "flow_only"
+        else "full_weights.pt"
+    )
+    weights.parent.mkdir(parents=True)
+    torch.save({"llm.test": torch.ones(3)}, weights)
+    norm = tmp_path / "source_norm.json"
+    norm.write_text(json.dumps({"norm_stats": {"state": {"mean": [1.0]}}}))
+    trained = OmegaConf.to_container(model, resolve=True)
+    trained["is_lora"] = kind == "explicit_subtask"
+    trained["openpi_data"]["norm_stats_path"] = str(norm)
+    config_path = tmp_path / "config.yaml"
+    OmegaConf.save(
+        OmegaConf.create({"actor": {"value": {"model": trained}}}), config_path
+    )
+    launch = tmp_path / "wandb-metadata.json"
+    launch.write_text(json.dumps({"git": {"commit": "historical-head"}}))
+    if kind == "flow_only":
+        torch.save(
+            [
+                {
+                    "signature": {
+                        "config_name": model.openpi.config_name,
+                        "norm_sha256": file_sha256(norm),
+                        "model": {
+                            "action_dim": 32,
+                            "action_horizon": 50,
+                            "max_token_len": 256,
+                            "discrete_state_input": True,
+                        },
+                        "data_kwargs": {"zero_base_action_targets": True},
+                    }
+                }
+            ],
+            checkpoint / "actor/data.pt",
+        )
+    else:
+        (checkpoint / "openpi_training.json").write_text(
+            json.dumps(
+                {
+                    "step": 45000,
+                    "model": trained,
+                    "text_template_version": 1,
+                    "normalization": json.loads(norm.read_text()),
+                }
+            )
+        )
+    bundle = tmp_path / "bundle"
+    manifest = prepare_deployment(
+        checkpoint,
+        bundle,
+        policy_kind=kind,
+        training_config=config_path,
+        launch_metadata=launch,
+    )
+    model.model_path = str(checkpoint)
+    model.openpi.deployment_metadata_path = str(manifest)
+    model.openpi_data.norm_stats_path = str(bundle / "norm_stats.json")
+    record = validate_deployment(model)
+    assert record["step"] == 45000
+    assert record["model"]["is_lora"] == (kind == "explicit_subtask")
+    assert record["historical_worktree_clean"] == "unknown"
+    with pytest.raises(FileExistsError):
+        prepare_deployment(
+            checkpoint,
+            bundle,
+            policy_kind=kind,
+            training_config=config_path,
+            launch_metadata=launch,
+        )
+    model.openpi.num_images_in_input = 2
+    with pytest.raises(ValueError, match="num_images_in_input"):
+        validate_deployment(model)
+    model.openpi.num_images_in_input = 3
+    model.openpi.policy_kind = (
+        "explicit_subtask" if kind == "flow_only" else "flow_only"
+    )
+    with pytest.raises(ValueError, match="policy_kind"):
+        validate_deployment(model)
+    model.openpi.policy_kind = kind
+    (bundle / "norm_stats.json").write_text("{}")
+    with pytest.raises(ValueError, match="normalization identical"):
+        validate_deployment(model)
+    (bundle / "norm_stats.json").write_text(norm.read_text())
+    with weights.open("r+b") as stream:
+        stream.seek(-1, 2)
+        byte = stream.read(1)
+        stream.seek(-1, 2)
+        stream.write(bytes([byte[0] ^ 1]))
+    with pytest.raises(ValueError, match="SHA256"):
+        validate_deployment(model)

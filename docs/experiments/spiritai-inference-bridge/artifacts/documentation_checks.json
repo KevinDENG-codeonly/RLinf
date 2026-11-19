@@ -1,0 +1,36 @@
+{
+  "checked_at_utc": "2026-11-18T01:55:20.370396+00:00",
+  "scope": "Research documentation only; no training, neural inference, robot connection, or production code changes.",
+  "checks": [
+    {
+      "command": "python3 .agents/skills/docs-check/build_docs.py",
+      "exit_code": 0,
+      "result": "English and Chinese builds each report zero retained warnings.",
+      "autodoc_import_warnings_filtered": true,
+      "limits": "The new experiment Markdown is outside the Sphinx toctrees; this build does not render it."
+    },
+    {
+      "command": ".docs-venv/bin/python .agents/skills/docs-check/check_rst_markup.py",
+      "exit_code": 0,
+      "result": "No inline-markup problems found."
+    },
+    {
+      "command": "python3 .agents/skills/docs-check/check_doc_symbols.py",
+      "exit_code": 1,
+      "result": "26 existing symbol references in unchanged English/Chinese RST files are unresolved.",
+      "limits": "No RST source file was modified in this update; these repository-wide findings remain unresolved."
+    },
+    {
+      "command": "Local CPU inspection and inventory assertions",
+      "exit_code": 0,
+      "result": "Final W&B configurations, saved normalization signature, matching tensor schemas, recorded source hashes and local Markdown links verified.",
+      "limits": "Schema equality does not compare tensor values or prove model behavior; deployed robot version was not checked."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "No tracked-diff whitespace errors."
+    }
+  ],
+  "bilingual_review": "Both proposal versions have the same 11 sections and cover assets, ownership, input contracts, protocol gaps, planned files, sequencing, timing, acceptance and scope."
+}

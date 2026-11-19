@@ -19,6 +19,7 @@ step-by-step while the next action chunk is requested asynchronously from the
 rollout worker, hiding inference latency behind control execution.
 """
 
+import asyncio
 import json
 import time
 from collections import defaultdict, deque
@@ -222,7 +223,12 @@ class RTCEnvWorker(EnvWorker):
         )
         return self._maybe_rewrite_eval_chunk_gripper(chunk_actions)
 
-    def evaluate(self, input_channel: Channel, rollout_channel: Channel):
+    def evaluate(
+        self,
+        input_channel: Channel,
+        rollout_channel: Channel,
+        control_channel: Channel | None = None,
+    ):
         """Run real-time-control evaluation.
 
         Args:
@@ -230,10 +236,13 @@ class RTCEnvWorker(EnvWorker):
                 rollout worker.
             rollout_channel: Channel used to send RTC requests to the rollout
                 worker.
+            control_channel: Optional driver-to-env shutdown channel.
         """
         rtc_cfg = self.cfg.runner.get("rtc", {})
         if float(rtc_cfg.get("request_timeout_s", 0.0)) > 0:
-            return self._evaluate_bounded(input_channel, rollout_channel)
+            return self._evaluate_bounded(
+                input_channel, rollout_channel, control_channel
+            )
         min_exec_horizon = int(rtc_cfg.get("min_exec_horizon", 2))
         initial_delay_steps = int(rtc_cfg.get("initial_delay_steps", 1))
         delay_buffer_size = int(rtc_cfg.get("delay_buffer_size", 8))
@@ -391,7 +400,12 @@ class RTCEnvWorker(EnvWorker):
 
         return eval_metrics
 
-    def _evaluate_bounded(self, input_channel: Channel, rollout_channel: Channel):
+    def _evaluate_bounded(
+        self,
+        input_channel: Channel,
+        rollout_channel: Channel,
+        control_channel: Channel | None = None,
+    ):
         from rlinf.workers.env.rtc_control import RTCSession
 
         if SupportedEnvType(self.cfg.env.eval.env_type) is not SupportedEnvType.REAL:
@@ -417,6 +431,19 @@ class RTCEnvWorker(EnvWorker):
         session = None
         work = None
         have_executed_action = False
+        last_control_poll = 0.0
+
+        def check_stop():
+            nonlocal last_control_poll
+            now = time.monotonic()
+            if control_channel is None or now - last_control_poll < 0.02:
+                return
+            last_control_poll = now
+            try:
+                reason = control_channel.get_nowait(key=self._rank)
+            except asyncio.QueueEmpty:
+                return
+            raise InterruptedError(f"RTC driver requested stop: {reason}")
 
         def json_value(value):
             if isinstance(value, torch.Tensor):
@@ -458,6 +485,7 @@ class RTCEnvWorker(EnvWorker):
 
             def receive(handle):
                 while not handle.done():
+                    check_stop()
                     session.check_deadline(time.monotonic())
                     time.sleep(0.002)
                 response = handle.wait()
@@ -498,6 +526,7 @@ class RTCEnvWorker(EnvWorker):
                     episode_success = False
                     done = False
                     for step in range(self.cfg.env.eval.max_steps_per_rollout_epoch):
+                        check_stop()
                         now = time.monotonic()
                         session.check_deadline(now)
                         if work is not None and work.done():
@@ -534,9 +563,11 @@ class RTCEnvWorker(EnvWorker):
                         success=episode_success,
                         done=done,
                     )
-                    if work is not None:
+                    if work is not None and epoch + 1 < self.eval_rollout_epoch:
                         receive(work)
                         work = None
+                    elif work is not None:
+                        record("response_discarded", reason="episode_limit")
                     self.finish_rollout(mode="eval")
                     if (
                         self.cfg.runner.get("stop_eval_on_keyboard_success", False)

@@ -183,6 +183,11 @@ jobs:
               # sampler), so env changes have to trigger this job.
               - 'rlinf/envs/**'
               - 'rlinf/models/embodiment/openpi/**'
+              - 'rlinf/utils/ckpt_convertor/openpi/**'
+              - 'toolkits/realworld_check/check_spiritai.py'
+              - 'toolkits/realworld_check/prepare_spiritai_server.py'
+              - 'rlinf/runners/embodied_eval_runner.py'
+              - 'rlinf/workers/rollout/hf/rtc_huggingface_worker.py'
               - 'rlinf/workers/env/rtc*.py'
               - 'rlinf/workers/actor/fsdp_actor_worker_pipeline.py'
               # test_data.py loads this script to test reward split preprocessing.
