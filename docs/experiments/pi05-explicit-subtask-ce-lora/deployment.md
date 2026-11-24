@@ -2,6 +2,8 @@
 
 使用本记录恢复实验 C 的部署配置，先检查预测与机器人协议，再由操作人员启动实际动作。当前部署沿用 RLinf PyTorch 模型和 Ray worker；机器人已有的 Docker container 负责图像、状态与底层执行。
 
+2026-11-24 已完成 LoRA 真机短测。长测中发生触桌过载急停，实验暂停，现场现象和证据见[阶段总结](../spiritai-inference-bridge/lora-validation-2026-11-24.md)。本页保留只读启动和协议恢复方法。
+
 ## 部署结构与权重
 
 GPU 工作站运行一个 `RTCMultiStepRolloutWorker` 和一个 `RTCEnvWorker`。前者加载完整 policy，在同一 GPU 上依次完成 HL Subtask Generation 和 LL Flow Sampling；后者承担 bridge 职责，通过 `SpiritaiCartesianEnv → SpiritaiClient` 访问机器人 WebSocket。机器人 container 本身不加入 Ray cluster。SpiritAI env 使用 `runtime_setup=false`，注册任务时跳过工作站上的 ROS 清理；本机直接驱动机器人的配置保留默认 setup。
@@ -16,30 +18,41 @@ GPU 工作站运行一个 `RTCMultiStepRolloutWorker` 和一个 `RTCEnvWorker`�
 logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000/
 ```
 
-部署使用 BF16 backbone 与现有 FP32 islands，action horizon 50、模型维度 32、机器人维度 25、10 次 Euler integration。默认 `planning_interval=3` 指三个 action request；每个 request 可能执行不同数量的控制 tick，不能把它解释为三秒或三个 tick。
+部署使用 BF16 backbone 与现有 FP32 islands，action horizon 50、模型维度 32、机器人维度 25。YAML 默认 10 次 Euler integration，本轮通过 300 tick 真机短测的 CLI 覆盖值为 5 次。默认 `planning_interval=3` 指三个 action request；每个 request 可能执行不同数量的控制 tick，不能把它解释为三秒或三个 tick。
 
 ## 先运行观测模式
 
 新配置默认 `execution_enabled=false`。它连接 container、读取相机和状态、运行 policy 并记录经过限幅的动作，但 client 只发送 `get_obs` 和 `get_status`，不切换 external following，也不发送动作。连接具有 container 的单客户端排他语义，请先退出其他 bridge。
 
-在现有 venv 中运行：
+从 RLinf 仓库根目录运行下列 50 tick 只读检查。按设备配置修改 GPU rank 与机器人 URL。
 
 ```bash
-cd /home/deng/Documents/codebase/RLinf
-source .venv/bin/activate
-PI05_DEPLOY_CKPT="$PWD/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000"
+ckpt="$PWD/logs/20261102_233335-pi05_subtask_lora_bs64/offline_eval_20261110_163331/exports/step_45000"
+bundle="$PWD/model_checkpoints/spiritai_deploy/explicit_subtask"
+robot_url=ws://172.16.0.30:8766
 
-CUDA_VISIBLE_DEVICES=0 bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_subtask_deploy \
-  rollout.model.model_path="$PI05_DEPLOY_CKPT" \
-  rollout.model.openpi_data.norm_stats_path="$PI05_DEPLOY_CKPT/norm_stats.json" \
-  env.eval.override_cfg.robot_url=ws://172.16.0.30:8766
+.venv/bin/python -m toolkits.realworld_check.check_spiritai --url "$robot_url" --require-execution &&
+PATH="$PWD/.venv/bin:$PATH" \
+bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_subtask_deploy \
+  cluster.component_placement.rollout=1 \
+  rollout.model.model_path="$ckpt" \
+  rollout.model.openpi.deployment_metadata_path="$bundle/openpi_deployment.json" \
+  rollout.model.openpi_data.norm_stats_path="$bundle/norm_stats.json" \
+  rollout.model.num_steps=5 \
+  rollout.model.openpi.num_steps=5 \
+  runner.rtc.request_timeout_s=1.2 \
+  env.eval.override_cfg.robot_url="$robot_url" \
+  env.eval.max_steps_per_rollout_epoch=50 \
+  env.eval.max_episode_steps=50 \
+  env.eval.override_cfg.execution_enabled=false \
+  'runner.logger.logger_backends=[]'
 ```
 
-该命令选择一张 GPU，保留原有 W&B logger。启动后先完成两轮 warmup，涵盖普通 Flow 与 `approx` RTC 路径；随后重新读取观测并 bootstrap。每个 episode 都清空高层文本和动作缓存，即使 overall 没有变化。
+先核对协议能力，再在 GPU 1 加载权重。部署配置默认启用 RTC 与 `approx` guidance。两轮 warmup 后重新读取观测并 bootstrap，每个 episode 都重置高层文本和动作缓存。
 
 日志位于 `logs/<时间>-realworld_spiritai_eval_pi05_subtask_deploy/`，其中 `spiritai_pi05_subtask_deploy/rtc-env-0.jsonl` 按 session、request 和 chunk 记录请求、生成文本、EOS、延迟、动作下发前后的值、测量状态及退出原因。缓存命中时不会重新生成 EOS，结合 `subtask_regenerated` 判断该条记录。
 
-## 确认动作契约后开启执行
+## 核对动作执行契约
 
 执行模式要求 container 的 hello metadata 声明以下能力：
 
@@ -55,7 +68,7 @@ CUDA_VISIBLE_DEVICES=0 bash evaluations/run_eval.sh realworld realworld_spiritai
 
 这些声明必须对应实际实现。`single_step_cartesian` 支持单行绝对目标；`tracked_completion` 根据后台任务完成状态报告 busy 并暴露执行错误；`cancel_actions` 取消后续 SDK 下发，并等待后台任务结束。
 
-审查时本地 `robot_server_code` 存在三个问题：`T=1` 进入 PCHIP/SLERP 后报错；ACK 先于后台执行，busy 只按预计时间清除；`cancel_actions()` 是空实现。兼容补丁在 [robot_server_compat.patch](artifacts/robot_server_compat.patch)，原始和修改后文件 SHA256 见 [manifest](artifacts/robot_server_compat_manifest.json)。补丁仅在临时副本验证，尚未应用于机器人或原始源码。
+审查时本地 `robot_server_code` 存在三个问题：`T=1` 进入 PCHIP/SLERP 后报错；ACK 先于后台执行，busy 只按预计时间清除；`cancel_actions()` 是空实现。兼容补丁在 [robot_server_compat.patch](artifacts/robot_server_compat.patch)，原始和修改后文件 SHA256 见 [manifest](artifacts/robot_server_compat_manifest.json)。上述补丁是历史归档。实机运行使用 2026-11-19 经校验并部署的兼容源码包，版本与恢复步骤见[统一 bridge 部署记录](../spiritai-inference-bridge/deployment.md)。
 
 先在实际部署源码上核对版本及补丁上下文。以下命令只检查补丁能否应用：
 
@@ -64,19 +77,9 @@ cd /home/deng/Documents/codebase/robot_server_code
 git apply --check /home/deng/Documents/codebase/RLinf/docs/experiments/pi05-explicit-subtask-ce-lora/artifacts/robot_server_compat.patch
 ```
 
-版本、协议和夹爪单位核实后，由操作人员在 RLinf 目录执行完整启动命令，并额外指定：
+历史动作执行由操作人员手动启动。设置 `execution_enabled=true` 后，预热结束即开始动作。external following 在第一条有效动作发送前开启，reset 读取当前位置。当前实验已暂停，恢复前先核实急停后的保护状态、桌面间隙与接触风险。
 
-```bash
-CUDA_VISIBLE_DEVICES=0 bash evaluations/run_eval.sh realworld realworld_spiritai_eval_pi05_subtask_deploy \
-  rollout.model.model_path="$PI05_DEPLOY_CKPT" \
-  rollout.model.openpi_data.norm_stats_path="$PI05_DEPLOY_CKPT/norm_stats.json" \
-  env.eval.override_cfg.robot_url=ws://172.16.0.30:8766 \
-  env.eval.override_cfg.execution_enabled=true
-```
-
-该命令复用上一节设置的 `PI05_DEPLOY_CKPT`。该 profile 使用手动启动命令作为执行入口，禁用了旧键盘 wrapper；开启后预热结束即开始动作，无需再按 `a`。external following 延迟至第一条有效动作发送前开启。初始化和 reset 只读取当前位置，不执行回零或夹爪复位。
-
-取消会停止发送后续 SDK 指令，底层控制器仍可能保持最后一个目标。软件取消不等价于电机急停；真实 SDK 的阻塞、取消与保持行为仍需在现场验证。
+取消会停止发送后续 SDK 指令，底层控制器仍可能保持最后一个目标。软件取消不等价于电机急停；软件收尾和机械状态需要分别核对。
 
 ## 控制参数为何这样设置
 
@@ -98,7 +101,7 @@ env worker 同时最多保留一个推理请求。接受回复时核对 session�
 
 本部署使用 RLinf 推理期 `approx` guidance。OpenPI 当前参考入口要求的 `training_time_v1` 属于另一种 RTC 契约，不能通过修改 metadata 名称来兼容当前 checkpoint。
 
-## 验证证据与边界
+## 软件阶段的历史证据
 
 验证使用一张 NVIDIA RTX PRO 5000 Blackwell、现有 `.venv`、真实 45000-step 权重和原训练 stats。CPU 单测覆盖协议错配、执行错误、观测模式、SO(3) 限幅、session 隔离、wall-clock 索引和动作耗尽。原生入口测试运行真实 Ray、model、worker、WebSocket server 及插值代码，仅将机器人 SDK 和相机替换为本地模拟。
 

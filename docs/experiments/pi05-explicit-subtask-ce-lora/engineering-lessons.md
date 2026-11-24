@@ -75,3 +75,8 @@ LoRA 仍需执行基础网络的 dense forward、部分 activation backward 和 
 实现提交首次通过 HTTPS 推送时，Git 没有 credential helper；改用已有 GitHub CLI 登录后，又因 OAuth 缺少 `workflow` scope 被拒绝，原因是提交包含 `.github/workflows/ci-tests.yml`。最后使用已有 SSH key，通过 `ssh.github.com:443` 完成完整分支推送，远端与本地 SHA 均为 `3a7af6d1`。
 
 以后遇到此类失败，区分“没有 Git 凭据”和“凭据权限不足”。使用已有 SSH 路径或有相应 scope 的登录，保留完整 CI 改动。SSH host key 当时通过 GitHub API metadata 核实，并使用临时 known-hosts 文件；临时文件不属于工程恢复依赖。
+
+
+## 真机推理跑通后，单独验证任务进展和运动质量
+
+2026-11-24 的 LoRA 300 tick 短测证明了单 GPU 推理、RTC 和实际动作下发的链路。长测后半段仍在刷新同一 subtask，最终发生现场报告的触桌过载急停。重新验证时，分别记录任务是否推进、子任务是否切换、下发目标是否连续，以及控制器是否报告接触或保护事件。速度限幅只能限制目标步幅，不能替代工作空间和接触风险检查。与 training-time RTC 的平顺性差异保持为现场观察，后续用同条件对照和控制器数据核查。[阶段总结](../spiritai-inference-bridge/lora-validation-2026-11-24.md)

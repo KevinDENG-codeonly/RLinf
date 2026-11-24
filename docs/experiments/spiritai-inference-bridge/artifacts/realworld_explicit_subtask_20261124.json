@@ -1,0 +1,529 @@
+{
+  "date_local": "2026-11-24",
+  "policy_kind": "explicit_subtask",
+  "checkpoint_step": 45000,
+  "weights_sha256": "5b378d56060897499a47aca87aec58f0bc48e74ee165c6cbc7d4fd8fc7b69bf1",
+  "server_version": "robot-server/0.3.1-rlinf-compat",
+  "rollout_gpu_rank": 1,
+  "source_hz": 30.0,
+  "action_chunk": 50,
+  "planning_interval": 3,
+  "operator_observation": {
+    "run_local_hms": "15:19:50",
+    "reported_event": "Gripper excessive contact with tabletop, followed by joint overload and emergency stop. Operator reported jerky motion relative to a previously used training-time RTC model.",
+    "source": "Operator report in session",
+    "robot_diagnostic_timeline_available": false,
+    "matched_training_time_rtc_comparison_available": false
+  },
+  "runs": [
+    {
+      "run": "execution_smoke",
+      "local_hms": "14:24:14",
+      "trace_path": "logs/20261124-14:24:14-realworld_spiritai_eval_pi05_subtask_deploy/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "b524d17173d3b5d16da481b83010ed51077a246356ce2019ecf5b44e406cea0b",
+      "requested_ticks": 50,
+      "euler_steps": 10,
+      "executed_control_ticks": 50,
+      "events": {
+        "request": 6,
+        "response": 5,
+        "step": 50,
+        "episode_end": 1,
+        "response_discarded": 1,
+        "closed": 1
+      },
+      "control_span_s": 1.944847,
+      "effective_control_hz": 25.194785,
+      "abort_errors": [],
+      "subtask_generations_in_accepted_responses": 1,
+      "subtask_refreshes_in_accepted_replans": 0,
+      "distinct_accepted_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "subtask_switches": 0,
+      "all_recorded_generated_subtasks_eos_terminated": true,
+      "all_predicted_limited_measured_values_finite": true,
+      "refresh_replan_request_s": null,
+      "cache_hit_replan_request_s": {
+        "p50": 0.404016,
+        "p95": 0.40864,
+        "p99": 0.409051,
+        "max": 0.409154
+      },
+      "last_trace_event": "closed"
+    },
+    {
+      "run": "execution_timeout",
+      "local_hms": "14:27:59",
+      "trace_path": "logs/20261124-14:27:59-realworld_spiritai_eval_pi05_subtask_deploy/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "fcd5b0efbd6bc4a00ca1bd5421a972ba229c94e39888e373f2d808bfa205f29e",
+      "requested_ticks": 300,
+      "euler_steps": 10,
+      "executed_control_ticks": 253,
+      "events": {
+        "request": 18,
+        "response": 17,
+        "step": 253,
+        "abort": 1,
+        "hold": 2,
+        "closed": 1
+      },
+      "control_span_s": 9.827133,
+      "effective_control_hz": 25.643287,
+      "abort_errors": [
+        "TimeoutError: RTC replan request 17 exceeded 1.200s; late actions must be discarded."
+      ],
+      "subtask_generations_in_accepted_responses": 5,
+      "subtask_refreshes_in_accepted_replans": 4,
+      "distinct_accepted_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "subtask_switches": 0,
+      "all_recorded_generated_subtasks_eos_terminated": true,
+      "all_predicted_limited_measured_values_finite": true,
+      "refresh_replan_request_s": {
+        "p50": 1.139363,
+        "p95": 1.153103,
+        "p99": 1.153829,
+        "max": 1.154011
+      },
+      "cache_hit_replan_request_s": {
+        "p50": 0.375154,
+        "p95": 0.396581,
+        "p99": 0.399641,
+        "max": 0.400406
+      },
+      "last_trace_event": "closed"
+    },
+    {
+      "run": "execution_5step",
+      "local_hms": "14:33:26",
+      "trace_path": "logs/20261124-14:33:26-realworld_spiritai_eval_pi05_subtask_deploy/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "3eeab6ed89815f8e064cf21b53f2ca0bd9f9aee6cdce8e0f0c4ff26c44a34538",
+      "requested_ticks": 300,
+      "euler_steps": 5,
+      "executed_control_ticks": 300,
+      "events": {
+        "request": 27,
+        "response": 26,
+        "step": 300,
+        "episode_end": 1,
+        "response_discarded": 1,
+        "closed": 1
+      },
+      "control_span_s": 11.63689,
+      "effective_control_hz": 25.694151,
+      "abort_errors": [],
+      "subtask_generations_in_accepted_responses": 8,
+      "subtask_refreshes_in_accepted_replans": 7,
+      "distinct_accepted_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "subtask_switches": 0,
+      "all_recorded_generated_subtasks_eos_terminated": true,
+      "all_predicted_limited_measured_values_finite": true,
+      "refresh_replan_request_s": {
+        "p50": 0.701309,
+        "p95": 0.730172,
+        "p99": 0.734314,
+        "max": 0.735349
+      },
+      "cache_hit_replan_request_s": {
+        "p50": 0.196695,
+        "p95": 0.204699,
+        "p99": 0.207686,
+        "max": 0.208433
+      },
+      "last_trace_event": "closed"
+    },
+    {
+      "run": "aligned_box_preview",
+      "local_hms": "14:45:24",
+      "trace_path": "logs/20261124-14:45:24-realworld_spiritai_eval_pi05_subtask_deploy/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "491fb0bee86730326b957e08c04840a6739b179f8417067877970d5490f24e4f",
+      "requested_ticks": 300,
+      "euler_steps": 5,
+      "executed_control_ticks": 0,
+      "events": {
+        "request": 27,
+        "response": 26,
+        "step": 300,
+        "episode_end": 1,
+        "response_discarded": 1,
+        "closed": 1
+      },
+      "control_span_s": 11.77154,
+      "effective_control_hz": 25.400245,
+      "abort_errors": [],
+      "subtask_generations_in_accepted_responses": 8,
+      "subtask_refreshes_in_accepted_replans": 7,
+      "distinct_accepted_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "subtask_switches": 0,
+      "all_recorded_generated_subtasks_eos_terminated": true,
+      "all_predicted_limited_measured_values_finite": true,
+      "refresh_replan_request_s": {
+        "p50": 0.707748,
+        "p95": 0.746234,
+        "p99": 0.749682,
+        "max": 0.750544
+      },
+      "cache_hit_replan_request_s": {
+        "p50": 0.183738,
+        "p95": 0.208876,
+        "p99": 0.209821,
+        "max": 0.210057
+      },
+      "last_trace_event": "closed"
+    },
+    {
+      "run": "before_alignment_preview",
+      "local_hms": "14:52:43",
+      "trace_path": "logs/20261124-14:52:43-realworld_spiritai_eval_pi05_subtask_deploy/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "6f8082eb0cc5458845d24463a6a94b492ab7a63ca821f8e1f6d0f1f92dc3bb2a",
+      "requested_ticks": 50,
+      "euler_steps": 5,
+      "executed_control_ticks": 0,
+      "events": {
+        "request": 7,
+        "response": 7,
+        "step": 50,
+        "episode_end": 1,
+        "closed": 1
+      },
+      "control_span_s": 1.964109,
+      "effective_control_hz": 24.947703,
+      "abort_errors": [],
+      "subtask_generations_in_accepted_responses": 2,
+      "subtask_refreshes_in_accepted_replans": 1,
+      "distinct_accepted_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "subtask_switches": 0,
+      "all_recorded_generated_subtasks_eos_terminated": true,
+      "all_predicted_limited_measured_values_finite": true,
+      "refresh_replan_request_s": {
+        "p50": 0.720361,
+        "p95": 0.720361,
+        "p99": 0.720361,
+        "max": 0.720361
+      },
+      "cache_hit_replan_request_s": {
+        "p50": 0.204726,
+        "p95": 0.206048,
+        "p99": 0.206166,
+        "max": 0.206195
+      },
+      "last_trace_event": "closed"
+    },
+    {
+      "run": "aligned_box_comparison",
+      "local_hms": "14:56:13",
+      "trace_path": "logs/20261124-14:56:13-realworld_spiritai_eval_pi05_subtask_deploy/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "1c0483f84b2cde750bcdb1d091f6bda66858d628d731b85735608c59d1198172",
+      "requested_ticks": 50,
+      "euler_steps": 5,
+      "executed_control_ticks": 0,
+      "events": {
+        "request": 7,
+        "response": 7,
+        "step": 50,
+        "episode_end": 1,
+        "closed": 1
+      },
+      "control_span_s": 1.954961,
+      "effective_control_hz": 25.06444,
+      "abort_errors": [],
+      "subtask_generations_in_accepted_responses": 2,
+      "subtask_refreshes_in_accepted_replans": 1,
+      "distinct_accepted_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "subtask_switches": 0,
+      "all_recorded_generated_subtasks_eos_terminated": true,
+      "all_predicted_limited_measured_values_finite": true,
+      "refresh_replan_request_s": {
+        "p50": 0.714798,
+        "p95": 0.714798,
+        "p99": 0.714798,
+        "max": 0.714798
+      },
+      "cache_hit_replan_request_s": {
+        "p50": 0.206641,
+        "p95": 0.210462,
+        "p99": 0.210802,
+        "max": 0.210887
+      },
+      "last_trace_event": "closed"
+    },
+    {
+      "run": "adjusted_pose_preview",
+      "local_hms": "15:09:26",
+      "trace_path": "logs/20261124-15:09:26-realworld_spiritai_eval_pi05_subtask_deploy/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "4d511aa50bb13c348349acf5105698941a08583f09efe1edb33d420e59a10a39",
+      "requested_ticks": 50,
+      "euler_steps": 5,
+      "executed_control_ticks": 0,
+      "events": {
+        "request": 7,
+        "response": 7,
+        "step": 50,
+        "episode_end": 1,
+        "closed": 1
+      },
+      "control_span_s": 1.949364,
+      "effective_control_hz": 25.136404,
+      "abort_errors": [],
+      "subtask_generations_in_accepted_responses": 2,
+      "subtask_refreshes_in_accepted_replans": 1,
+      "distinct_accepted_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "subtask_switches": 0,
+      "all_recorded_generated_subtasks_eos_terminated": true,
+      "all_predicted_limited_measured_values_finite": true,
+      "refresh_replan_request_s": {
+        "p50": 0.704719,
+        "p95": 0.704719,
+        "p99": 0.704719,
+        "max": 0.704719
+      },
+      "cache_hit_replan_request_s": {
+        "p50": 0.205604,
+        "p95": 0.208373,
+        "p99": 0.208619,
+        "max": 0.208681
+      },
+      "last_trace_event": "closed"
+    },
+    {
+      "run": "execution_stopped",
+      "local_hms": "15:19:50",
+      "trace_path": "logs/20261124-15:19:50-realworld_spiritai_eval_pi05_subtask_deploy/spiritai_pi05_subtask_deploy/rtc-env-0.jsonl",
+      "trace_sha256": "c71696a13ee32b5dc96599598896143046d8232a2861d58aeb612c4a8b0eb3f3",
+      "requested_ticks": 1500,
+      "euler_steps": 5,
+      "executed_control_ticks": 1452,
+      "events": {
+        "request": 122,
+        "response": 122,
+        "step": 1452,
+        "abort": 1,
+        "hold": 2,
+        "closed": 1
+      },
+      "control_span_s": 55.948198,
+      "effective_control_hz": 25.934705,
+      "abort_errors": [
+        "InterruptedError: RTC driver requested stop: SIGINT"
+      ],
+      "subtask_generations_in_accepted_responses": 40,
+      "subtask_refreshes_in_accepted_replans": 39,
+      "distinct_accepted_subtasks": [
+        "Use the left gripper to push the carton blank from the initial position to the center of the work area, then make a small adjustment so that the blank is properly aligned."
+      ],
+      "subtask_switches": 0,
+      "all_recorded_generated_subtasks_eos_terminated": true,
+      "all_predicted_limited_measured_values_finite": true,
+      "refresh_replan_request_s": {
+        "p50": 0.711471,
+        "p95": 0.749137,
+        "p99": 0.754442,
+        "max": 0.756127
+      },
+      "cache_hit_replan_request_s": {
+        "p50": 0.194479,
+        "p95": 0.202952,
+        "p99": 0.204167,
+        "max": 0.205473
+      },
+      "last_trace_event": "closed",
+      "env_step_gap_ms": {
+        "p50": 37.877,
+        "p95": 46.631099,
+        "p99": 49.284469,
+        "max": 53.771108
+      },
+      "cross_chunk_step_gap_ms": {
+        "p50": 38.949475,
+        "p95": 47.126637,
+        "p99": 48.37086,
+        "max": 48.520451
+      },
+      "env_step_duration_ms": {
+        "p50": 33.399629,
+        "p95": 33.407022,
+        "p99": 33.41493,
+        "max": 33.518673
+      },
+      "same_chunk_skipped_rows_per_tick_transition": {
+        "0": 1102,
+        "1": 230
+      },
+      "selected_cartesian_point_to_point_delta": {
+        "left": {
+          "predicted_action": {
+            "xyz_delta_mm_within_chunk": {
+              "p50": 260.340702,
+              "p95": 867.04664,
+              "p99": 1269.28863,
+              "max": 2040.23056
+            },
+            "xyz_delta_mm_across_chunk": {
+              "p50": 536.346252,
+              "p95": 1299.974114,
+              "p99": 1697.126276,
+              "max": 2113.450454
+            },
+            "so3_delta_deg_within_chunk": {
+              "p50": 67.83621,
+              "p95": 171.182929,
+              "p99": 178.497462,
+              "max": 179.93726
+            },
+            "so3_delta_deg_across_chunk": {
+              "p50": 95.995415,
+              "p95": 174.813961,
+              "p99": 179.197437,
+              "max": 179.721833
+            }
+          },
+          "limited_action": {
+            "xyz_delta_mm_within_chunk": {
+              "p50": 1.09724,
+              "p95": 3.803147,
+              "p99": 4.846984,
+              "max": 5.729232
+            },
+            "xyz_delta_mm_across_chunk": {
+              "p50": 1.321914,
+              "p95": 4.744682,
+              "p99": 5.032417,
+              "max": 5.091016
+            },
+            "so3_delta_deg_within_chunk": {
+              "p50": 0.464509,
+              "p95": 1.398892,
+              "p99": 1.473011,
+              "max": 2.350589
+            },
+            "so3_delta_deg_across_chunk": {
+              "p50": 0.917599,
+              "p95": 1.341867,
+              "p99": 1.484453,
+              "max": 1.510467
+            }
+          },
+          "measured_after": {
+            "xyz_delta_mm_within_chunk": {
+              "p50": 0.455593,
+              "p95": 0.638584,
+              "p99": 0.754361,
+              "max": 4.636371
+            },
+            "xyz_delta_mm_across_chunk": {
+              "p50": 0.517293,
+              "p95": 0.681401,
+              "p99": 0.889294,
+              "max": 3.043813
+            },
+            "so3_delta_deg_within_chunk": {
+              "p50": 0.098141,
+              "p95": 0.182258,
+              "p99": 0.210488,
+              "max": 1.969281
+            },
+            "so3_delta_deg_across_chunk": {
+              "p50": 0.131218,
+              "p95": 0.193639,
+              "p99": 0.214986,
+              "max": 1.349465
+            }
+          }
+        },
+        "right": {
+          "predicted_action": {
+            "xyz_delta_mm_within_chunk": {
+              "p50": 226.31367,
+              "p95": 749.553376,
+              "p99": 1114.133508,
+              "max": 1652.573299
+            },
+            "xyz_delta_mm_across_chunk": {
+              "p50": 451.823418,
+              "p95": 1117.321529,
+              "p99": 1597.294463,
+              "max": 1649.706658
+            },
+            "so3_delta_deg_within_chunk": {
+              "p50": 35.532626,
+              "p95": 110.886209,
+              "p99": 167.070269,
+              "max": 178.072221
+            },
+            "so3_delta_deg_across_chunk": {
+              "p50": 104.311561,
+              "p95": 163.120271,
+              "p99": 178.698425,
+              "max": 179.112751
+            }
+          },
+          "limited_action": {
+            "xyz_delta_mm_within_chunk": {
+              "p50": 0.907482,
+              "p95": 2.592462,
+              "p99": 3.4824,
+              "max": 5.080894
+            },
+            "xyz_delta_mm_across_chunk": {
+              "p50": 1.071636,
+              "p95": 2.848773,
+              "p99": 3.535096,
+              "max": 4.395313
+            },
+            "so3_delta_deg_within_chunk": {
+              "p50": 0.269779,
+              "p95": 1.216686,
+              "p99": 1.407678,
+              "max": 1.503572
+            },
+            "so3_delta_deg_across_chunk": {
+              "p50": 0.88147,
+              "p95": 1.32586,
+              "p99": 1.390281,
+              "max": 1.434849
+            }
+          },
+          "measured_after": {
+            "xyz_delta_mm_within_chunk": {
+              "p50": 0.262299,
+              "p95": 0.555084,
+              "p99": 0.630356,
+              "max": 0.77274
+            },
+            "xyz_delta_mm_across_chunk": {
+              "p50": 0.269255,
+              "p95": 0.601875,
+              "p99": 0.614926,
+              "max": 0.639647
+            },
+            "so3_delta_deg_within_chunk": {
+              "p50": 0.113452,
+              "p95": 0.172409,
+              "p99": 0.199197,
+              "max": 0.248002
+            },
+            "so3_delta_deg_across_chunk": {
+              "p50": 0.131792,
+              "p95": 0.160786,
+              "p99": 0.167376,
+              "max": 0.168384
+            }
+          }
+        }
+      }
+    }
+  ],
+  "physical_result_scope": "Successful short dispatch and timing at 5 Euler steps. Long run was interrupted after 1452 ticks. No autonomous subtask switch or complete folding was established. Software holds and close do not establish mechanical recovery."
+}

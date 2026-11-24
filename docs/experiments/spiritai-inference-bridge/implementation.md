@@ -2,7 +2,7 @@
 
 恢复 Full Flow 真机推理的组件职责、资产来源、部署变更和已验证边界。日常命令见[操作手册](README.md)，手动设置见[参数说明](parameters.md)，机器迁移与故障处理见[部署说明](deployment.md)。[English](implementation.en.md)
 
-本轮软件基于 `main:f1d402ae`，工作分支为 `feature/spiritai-unified-inference-bridge`。2026-11-18 完成软件与模拟检查；2026-11-19 由用户手动完成机器人源码部署和 Full Flow 真机检查。训练、机器人动作和服务重启仍由操作人员手动启动。本文新增真机记录仅覆盖 Full Flow。
+本轮软件基于 `main:f1d402ae`，工作分支为 `feature/spiritai-unified-inference-bridge`。2026-11-18 完成软件与模拟检查；2026-11-19 由用户手动完成机器人源码部署和 Full Flow 真机检查。训练、机器人动作和服务重启仍由操作人员手动启动。本文记录 Full Flow。2026-11-24 的 LoRA 部署、急停与卡顿记录见 [LoRA 阶段总结](lora-validation-2026-11-24.md)。
 
 ## 原生 RLinf 推理链路
 

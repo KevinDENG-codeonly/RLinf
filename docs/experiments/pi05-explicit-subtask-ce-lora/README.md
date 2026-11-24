@@ -4,7 +4,11 @@
 
 从这里恢复实验 C 的实现背景、数据契约、训练配置和故障处理方法。记录回答三个问题：这轮改了什么、为什么这样改、以后遇到同类问题应检查什么。
 
-整理日期为 2026-11-04。实现与训练配置对应提交 [`3a7af6d1`](https://github.com/KevinDENG-codeonly/RLinf/commit/3a7af6d104afb24e0baf883ad1dd66c045040e69)，分支为 `feature/pi05-flow-explict-subtask-ce-lora`。性能与分布式验证来自 2026-11-02 的归档；本次补文档没有启动训练，也没有审计后续 45000 步运行的完成状态。
+训练备份最初整理于 2026-11-04。实现与训练配置对应提交 [`3a7af6d1`](https://github.com/KevinDENG-codeonly/RLinf/commit/3a7af6d104afb24e0baf883ad1dd66c045040e69)，分支为 `feature/pi05-flow-explict-subtask-ce-lora`。性能与分布式验证来自 2026-11-02 的归档。后续 45000 步权重的离线和真机验证记录见下方。
+
+## 2026-11-24 阶段归档
+
+45000 步权重已完成离线 subtask 评估及单 GPU 真机推理链路验证。5 步采样完成 300 tick 真机短测。1500 tick 长测在 1452 tick 中止，现场报告触桌、过载急停和动作卡顿。高层一直输出摆正盒坯，闭环切换与完整折盒未验证，实验暂告一段落。[真机与离线阶段总结](../spiritai-inference-bridge/lora-validation-2026-11-24.md)
 
 ## 备份内容
 
@@ -27,7 +31,7 @@
 |---|---|---|
 | 数据调整 | 将 overall 与逐帧 subtask 分离，保持 LeRobot v2.1 布局 | 712 episodes、1148747 frames；转换报告与官方 reader 抽样记录已归档 |
 | 训练实现 | 两个 Gemma expert 的原生 LoRA、HL/LL 交替 microbatch、CE mask 与 flow loss | 代码、配置和相关单测随实现提交保存 |
-| 推理实现 | 显式自回归 subtask、独立的动作条件、低频规划缓存和 RTC 状态处理 | 接口与测试存在；模型是否能生成合适的 subtask、真机效果仍需测量 |
+| 推理实现 | 显式自回归 subtask、独立的动作条件、低频规划缓存和 RTC 状态处理 | 离线生成和真机动作下发已验证，闭环切换和折盒结果待验证 |
 | 分布式修复 | 将 CE chunk 循环移入一次 FSDP output-module 调用 | CPU/Gloo 2/4 rank 回归、旧实现负对照、人工确认越过原触发点 |
 | 参数对齐 | 核实全参数实际日志后采用 global 64、micro 8、45000 步、warmup 750 | 参考的是实际运行配置，不能只看通用 YAML 默认值 |
 | 执行调优 | 关闭重计算、启用 backward prefetch 和已有局部 GELU 编译 | 最终双卡 100 步通过，不保存权重；后 50 步平均 4.831 秒 |

@@ -2,7 +2,7 @@
 
 Recover component ownership, asset provenance, deployment changes, and verified limits of Full Flow robot inference. Use the [runbook](README.en.md) for commands, [parameters](parameters.en.md) for manual settings, and [deployment](deployment.en.md) for machine setup and failures. [中文](implementation.md)
 
-Software is based on `main:f1d402ae`, on branch `feature/spiritai-unified-inference-bridge`. Software/simulation checks completed on 2026-11-18; the user manually deployed robot source and checked Full Flow on hardware on 2026-11-19. Operators launch training, robot actions and service restarts manually. New hardware results here cover Full Flow only.
+Software is based on `main:f1d402ae`, on branch `feature/spiritai-unified-inference-bridge`. Software/simulation checks completed on 2026-11-18; the user manually deployed robot source and checked Full Flow on hardware on 2026-11-19. Operators launch training, robot actions and service restarts manually. This page records Full Flow. See the [LoRA closeout](lora-validation-2026-11-24.en.md) for the 2026-11-24 hardware runs, emergency stop, and motion observations.
 
 ## Native RLinf Runtime
 

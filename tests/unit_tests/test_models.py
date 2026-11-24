@@ -1890,6 +1890,26 @@ def test_openpi_subtask_planning_state_requires_reset_for_identical_next_episode
     assert state.should_plan(["fold box"], 2)
 
 
+def test_spiritai_offline_subtask_window_stays_within_adjacent_segments():
+    pytest.importorskip("openpi")
+
+    from toolkits.standalone_eval_scripts.openpi.spiritai_subtask_eval import (
+        select_frames,
+    )
+
+    selected, boundary = select_frames(
+        ["align"] * 4 + ["fold"] * 4 + ["place"] * 4,
+        seed=42,
+        radius=12,
+        stride=3,
+    )
+    assert boundary == 4
+    assert list(selected) == [1, 4, 5, 7, 9]
+    assert selected[1] == ["segment_center", "boundary_before", "boundary_window"]
+    assert selected[7] == ["boundary_after", "boundary_window"]
+    assert selected[9] == ["segment_center"]
+
+
 def test_spiritai_deployment_rejects_changed_training_shape_and_stats(
     tmp_path, monkeypatch
 ):

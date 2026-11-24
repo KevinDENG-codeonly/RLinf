@@ -10,6 +10,10 @@ As of 2026-11-19, the 45000-step Full Flow policy has completed a real-observati
 | Short robot check | 50 | 25.19 Hz | 0 / 0 | User observed robot motion; connection closed |
 | Approximately one-minute robot run | 1500 | 25.42 Hz | 0 / 0 | 58.97 seconds from first to last tick; connection closed |
 
+## Explicit Subtask LoRA Status
+
+On 2026-11-24, the 45000-step LoRA checkpoint completed a 300-tick hardware check through the same bridge. The 1500-tick run ended at 1452 ticks. The operator reported a tabletop-contact overload, an emergency stop, and jerkier motion than with a training-time RTC model. The planner kept generating the same subtask throughout the run. Closed-loop transitions remain unverified and the experiment is paused. The launch examples below use Full Flow. Find LoRA settings, run evidence, and the incident analysis in the [LoRA closeout](lora-validation-2026-11-24.en.md).
+
 ## Documentation Map
 
 Choose a page by the operation you need. The original proposal is archived; use this runbook and parameter reference for current operation.

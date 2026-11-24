@@ -57,7 +57,14 @@ class SpiritaiSDK:
 class SpiritaiContainer:
     """Serve the supplied native source with fake hardware, on loopback only."""
 
-    def __init__(self, server_root: str | Path, *, state=None, images=None):
+    def __init__(
+        self,
+        server_root: str | Path,
+        *,
+        state=None,
+        images=None,
+        observation_source=None,
+    ):
         sys.path.insert(0, str(Path(server_root) / "robot_server"))
         moz = importlib.import_module("mozrobot")
         native = importlib.import_module("server")
@@ -87,6 +94,15 @@ class SpiritaiContainer:
         self.robot._robot = self.sdk
         self.robot.cart_dim = 23
         self.robot.joint_dim = 25
+        if observation_source is not None:
+            get_observation = self.robot.get_observation
+
+            def replay_observation():
+                nonlocal state, images
+                state, images = observation_source()
+                return get_observation()
+
+            self.robot.get_observation = replay_observation
         self.server = native.RobotServer(self.robot, max_chunk=60)
         self.ready = threading.Event()
 

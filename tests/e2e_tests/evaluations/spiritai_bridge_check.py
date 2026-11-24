@@ -79,6 +79,19 @@ def main() -> None:
     parser.add_argument("--ckpt", type=Path)
     parser.add_argument("--bundle", type=Path)
     parser.add_argument("--sample-cache", type=Path)
+    parser.add_argument(
+        "--sample-indices",
+        type=int,
+        nargs="+",
+        default=[0],
+        help="Ordered observation indices in the supplied cache.",
+    )
+    parser.add_argument(
+        "--reads-per-sample",
+        type=int,
+        default=120,
+        help="Observation reads per replay sample before advancing.",
+    )
     parser.add_argument("--steps", type=int, default=300)
     parser.add_argument(
         "--gpu", type=int, default=0, help="One RLinf hardware rank for the policy."
@@ -112,16 +125,43 @@ def main() -> None:
     if args.steps <= 0 or args.steps % 50:
         parser.error("--steps must be positive and divisible by horizon 50.")
     repo = Path(__file__).resolve().parents[3]
-    state = np.load(args.sample_cache / "states.npy", mmap_mode="r")[0].copy()
-    pixels = np.load(args.sample_cache / "images.npy", mmap_mode="r")[0]
-    images = {
-        name: np.array(pixels[index, ::2, ::2], copy=True)
-        for index, name in enumerate(CAMERA_KEYS)
-    }
+    states = np.load(args.sample_cache / "states.npy", mmap_mode="r")
+    pixels = np.load(args.sample_cache / "images.npy", mmap_mode="r")
+    is_replay = len(args.sample_indices) > 1
+    if args.reads_per_sample <= 0 or any(
+        not 0 <= index < min(len(states), len(pixels)) for index in args.sample_indices
+    ):
+        parser.error("Expected valid sample indices and positive --reads-per-sample.")
+    if is_replay and (args.policy_kind != "explicit_subtask" or args.disable_guidance):
+        parser.error("Expected explicit_subtask with guidance for ordered replay.")
+    samples = [
+        (
+            states[sample].copy(),
+            {
+                name: np.array(pixels[sample, camera, ::2, ::2], copy=True)
+                for camera, name in enumerate(CAMERA_KEYS)
+            },
+        )
+        for sample in args.sample_indices
+    ]
+    reads = 0
+
+    def next_observation():
+        nonlocal reads
+        index = min(reads // args.reads_per_sample, len(samples) - 1)
+        reads += 1
+        return samples[index]
+
+    state, images = samples[0]
     name = "full" if args.policy_kind == "flow_only" else "subtask"
     profile = f"realworld_spiritai_eval_pi05_{name}_deploy"
     trace_path = args.output / f"spiritai_pi05_{name}_deploy/rtc-env-0.jsonl"
-    with SpiritaiContainer(args.server_root, state=state, images=images) as container:
+    with SpiritaiContainer(
+        args.server_root,
+        state=state,
+        images=images,
+        observation_source=next_observation if is_replay else None,
+    ) as container:
         report = check_spiritai(container.url, require_execution=True)
         assert report["actions_sent"] == 0 and not container.sdk.rows
         command = [
@@ -256,6 +296,25 @@ def main() -> None:
             )
         if args.disable_guidance:
             assert not any(event["guidance_applied"] for event in responses)
+        changes = [
+            index
+            for index, event in enumerate(responses)
+            if event.get("subtask_changed")
+        ]
+        if is_replay:
+            assert changes, "Expected a generated subtask change during ordered replay."
+            assert all(
+                responses[index].get("subtask_regenerated")
+                and all(responses[index]["subtask_eos"])
+                and not responses[index]["guidance_applied"]
+                for index in changes
+            ), "Expected EOS and no guidance from the stale subtask chunk."
+            assert any(
+                responses[index]["subtasks"] == responses[index + 1]["subtasks"]
+                and responses[index + 1]["guidance_applied"]
+                for index in changes
+                if index + 1 < len(responses)
+            ), "Expected guidance to resume on the next chunk with the new subtask."
         replan_times = [
             event["inference_seconds"] for event in responses if event["chunk_id"] >= 3
         ]
@@ -269,6 +328,8 @@ def main() -> None:
             "external_following_after_exit": container.sdk.following,
             "real_robot_connected": False,
             "inference_requests": len(responses),
+            "sample_indices": args.sample_indices,
+            "subtask_changes": [responses[index]["chunk_id"] for index in changes],
             "replan_seconds_percentiles": {
                 str(q): float(np.percentile(replan_times, q)) for q in (50, 95, 99)
             }
